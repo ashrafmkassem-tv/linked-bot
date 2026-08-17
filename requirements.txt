@@ -1,0 +1,6 @@
+requests
+python-dotenv
+apscheduler
+yfinance
+fastapi
+uvicorn

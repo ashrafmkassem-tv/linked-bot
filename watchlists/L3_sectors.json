@@ -1,0 +1,242 @@
+{
+  "Energy-Metals": {
+    "tickers": [
+      "ALB",
+      "CCJ",
+      "DNN",
+      "EU",
+      "FCX",
+      "LAC",
+      "LEU",
+      "NDM",
+      "NOL",
+      "NOU",
+      "NOV",
+      "RIG",
+      "TE",
+      "USAR",
+      "UUUU"
+    ],
+    "keywords": [
+      "lithium",
+      "uranium",
+      "copper",
+      "critical mineral",
+      "DOE",
+      "Canada",
+      "Canadian",
+      "Cameco",
+      "rare earth"
+    ]
+  },
+  "Chip-Mfg": {
+    "tickers": [
+      "AMAT",
+      "AMD",
+      "ASML",
+      "BB",
+      "CEVA",
+      "DRAM",
+      "NVDA",
+      "POET",
+      "RAM",
+      "SIMO",
+      "SNDU",
+      "SQNS",
+      "TSM"
+    ],
+    "keywords": [
+      "chip contract",
+      "foundry",
+      "semiconductor",
+      "AI chip",
+      "Canada"
+    ]
+  },
+  "AI-Cooling": {
+    "tickers": [
+      "AMZN",
+      "BITF",
+      "CRWV",
+      "DELL",
+      "HIVE",
+      "HIVE.TO",
+      "HUT",
+      "IREN",
+      "MSFT",
+      "NBIS",
+      "NOW",
+      "NOW.V",
+      "ORCL",
+      "SMCI",
+      "VRT"
+    ],
+    "keywords": [
+      "data center",
+      "liquid cooling",
+      "AI cooling",
+      "Canada",
+      "Hut 8",
+      "Bitfarms",
+      "CoreWeave"
+    ]
+  },
+  "SSD-Storage": {
+    "tickers": [
+      "DRAM",
+      "MU",
+      "RAM",
+      "SIMO",
+      "SNDU",
+      "STX",
+      "WDC"
+    ],
+    "keywords": [
+      "SSD",
+      "NAND",
+      "storage",
+      "NVMe",
+      "memory"
+    ]
+  },
+  "Controller-Chip": {
+    "tickers": [
+      "AVGO",
+      "CEVA",
+      "MCHP",
+      "MRVL",
+      "SIMO",
+      "SQNS",
+      "SWKS"
+    ],
+    "keywords": [
+      "SSD controller",
+      "storage controller",
+      "NVMe controller",
+      "memory controller"
+    ]
+  },
+  "SMR-Nuclear": {
+    "tickers": [
+      "CCJ",
+      "CCJ.TO",
+      "DNN",
+      "EU",
+      "NNE",
+      "NOU",
+      "OKLO",
+      "SMR",
+      "USAR"
+    ],
+    "keywords": [
+      "SMR",
+      "nuclear",
+      "small modular reactor",
+      "nuclear contract",
+      "CNSC",
+      "Canada"
+    ]
+  },
+  "AI-Power": {
+    "tickers": [
+      "AQN",
+      "BBAI",
+      "BIP",
+      "BITF",
+      "EME",
+      "ETN",
+      "FTS",
+      "HIVE",
+      "HUBB",
+      "HUT",
+      "IPWR",
+      "NOW",
+      "NOW.V",
+      "NPI.TO",
+      "ORCL",
+      "PLTR",
+      "PYPL",
+      "SOFI",
+      "TSLA",
+      "UBER",
+      "VERI"
+    ],
+    "keywords": [
+      "power infrastructure",
+      "transformer",
+      "grid upgrade",
+      "data center power",
+      "Canada",
+      "Hydro",
+      "AI power",
+      "ServiceNow",
+      "NOW Vertical"
+    ]
+  },
+  "Optical": {
+    "tickers": [
+      "AAOI",
+      "CIEN",
+      "COHR",
+      "FN",
+      "LITE",
+      "NOK",
+      "POET",
+      "ZETA"
+    ],
+    "keywords": [
+      "optical transceiver",
+      "CPO",
+      "800G",
+      "1.6T",
+      "optical contract",
+      "POET",
+      "5G"
+    ]
+  },
+  "Quantum": {
+    "tickers": [
+      "IONQ",
+      "QBTS",
+      "QUBT",
+      "RGTI"
+    ],
+    "keywords": [
+      "quantum contract",
+      "quantum award",
+      "DOE quantum",
+      "Canada",
+      "D-Wave"
+    ]
+  },
+  "Space-Drones": {
+    "tickers": [
+      "AQB",
+      "ASTS",
+      "AVAV",
+      "BBAI",
+      "CRWV",
+      "DVLT",
+      "EBM",
+      "ENSC",
+      "LUNR",
+      "MDA.TO",
+      "MSS",
+      "ONDS",
+      "PLTR",
+      "RCAT",
+      "SPCE",
+      "VTIX"
+    ],
+    "keywords": [
+      "drone contract",
+      "satellite contract",
+      "Space Force",
+      "space contract",
+      "Pentagon drone",
+      "CSA",
+      "Canada",
+      "Virgin Galactic"
+    ]
+  }
+}
