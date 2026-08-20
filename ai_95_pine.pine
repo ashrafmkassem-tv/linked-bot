@@ -1,0 +1,153 @@
+// @version=5
+// Hybrid AI 95 - TradingView + Railway Cloud - Highest Success Rate
+// TradingView (your account) gives real-time signal, Railway does heavy analysis
+// 95 Stocks - Before Explosion Detection
+// Old email alerts (yellow/green/red) untouched - this is separate
+// Webhook: https://web-production-7cc71.up.railway.app/webhook/ai
+// Secret: mysecret123
+
+indicator("AI 95 Hybrid - Railway Cloud - Explosion Detector", overlay=true, max_labels_count=500)
+
+// === INPUTS ===
+secretInput = input.string("mysecret123", "Webhook Secret")
+rsiLen = input.int(14, "RSI Length")
+emaFast = input.int(9, "EMA Fast")
+emaSlow = input.int(21, "EMA Slow")
+emaTrend = input.int(50, "EMA Trend")
+bbLen = input.int(20, "BB Length")
+bbMult = input.float(2.0, "BB Mult")
+volLen = input.int(20, "Volume Avg Length")
+scoreThreshold = input.int(60, "Score Threshold for Alert (60-80)")
+
+// === CORE INDICATORS ===
+rsi_val = ta.rsi(close, rsiLen)
+ema9 = ta.ema(close, emaFast)
+ema21 = ta.ema(close, emaSlow)
+ema50 = ta.ema(close, emaTrend)
+[bb_mid, bb_up, bb_low] = ta.bb(close, bbLen, bbMult)
+bb_width = (bb_up - bb_low) / bb_mid
+vol_avg = ta.sma(volume, volLen)
+rvol = volume / vol_avg
+highest10 = ta.highest(high, 10)
+breakout = ta.crossover(close, highest10[1])
+
+// Yellow/Green/Red logic from your old indicator (keep compatible)
+// Yellow Up = early bullish, Green = strong buy
+yellow_up = close > ema9 and ema9 > ema21 and rsi_val > 50 and rsi_val < 70 and rvol > 1.2
+green_signal = close > ema9 and ema9 > ema21 and ema50 and close > ema50 and rsi_val > 55 and rvol > 1.5
+red_signal = close < ema9 and rsi_val > 75
+
+// === EXPLOSION SCORE 0-100 ===
+// Trend 0-25
+trendScore = 0
+if close > ema9 and ema9 > ema21 and ema21 > ema50
+    trendScore := 25
+else if close > ema9 and ema9 > ema21
+    trendScore := 18
+else if close > ema21
+    trendScore := 10
+
+// Momentum RSI 0-20
+rsiScore = 0
+if rsi_val >= 55 and rsi_val <= 70
+    rsiScore := 20
+else if rsi_val >= 50 and rsi_val <= 75
+    rsiScore := 15
+else if rsi_val > 75 and rsi_val < 85
+    rsiScore := 8
+
+// Volume - MOST IMPORTANT 0-25
+volScore = 0
+if rvol >= 3.0
+    volScore := 25
+else if rvol >= 2.0
+    volScore := 20
+else if rvol >= 1.5
+    volScore := 15
+else if rvol >= 1.2
+    volScore := 8
+
+// BB Squeeze 0-15
+bbScore = 0
+if bb_width < 0.06
+    bbScore := 15
+else if bb_width < 0.08
+    bbScore := 15
+else if bb_width < 0.12
+    bbScore := 10
+
+// Breakout 0-15
+breakoutScore = breakout ? 10 : 0
+
+// Yellow/Green bonus
+bonusScore = 0
+if yellow_up
+    bonusScore += 5
+if green_signal
+    bonusScore += 8
+
+explosion_score = trendScore + rsiScore + volScore + bbScore + breakoutScore + bonusScore
+explosion_score := math.min(explosion_score, 100)
+
+// === SIGNALS ===
+strongBuy = explosion_score >= 80
+buyEarly = explosion_score >= 65 and explosion_score < 80
+watchSignal = explosion_score >= 50 and explosion_score < 65
+
+// === PLOTS ===
+plot(ema9, "EMA9", color=color.new(color.green, 0), linewidth=2)
+plot(ema21, "EMA21", color=color.new(color.red, 0), linewidth=2)
+plot(ema50, "EMA50", color=color.new(color.blue, 40), linewidth=1)
+
+bgcolor(strongBuy ? color.new(color.green, 80) : buyEarly ? color.new(color.yellow, 80) : na)
+
+plotshape(strongBuy, title="STRONG BUY - BEFORE EXPLOSION", style=shape.labelup, location=location.belowbar, color=color.green, text="BUY NOW\nEXPLODE", textcolor=color.white, size=size.large)
+plotshape(buyEarly and not strongBuy, title="BUY EARLY", style=shape.labelup, location=location.belowbar, color=color.yellow, text="BUY\nEARLY", textcolor=color.black, size=size.normal)
+plotshape(yellow_up and not buyEarly and not strongBuy, title="YELLOW UP", style=shape.triangleup, location=location.belowbar, color=color.yellow, size=size.small)
+
+// Table for score
+var table scoreTable = table.new(position.top_right, 2, 7, bgcolor=color.new(color.black, 60), border_width=1)
+if barstate.islast
+    table.cell(scoreTable, 0, 0, "Score", text_color=color.white)
+    table.cell(scoreTable, 1, 0, str.tostring(explosion_score), text_color=color.yellow)
+    table.cell(scoreTable, 0, 1, "RSI", text_color=color.white)
+    table.cell(scoreTable, 1, 1, str.tostring(rsi_val, "#.1"), text_color=rsi_val > 55 and rsi_val < 70 ? color.green : color.white)
+    table.cell(scoreTable, 0, 2, "rVol", text_color=color.white)
+    table.cell(scoreTable, 1, 2, str.tostring(rvol, "#.2") + "x", text_color=rvol >= 2.0 ? color.green : color.white)
+    table.cell(scoreTable, 0, 3, "BB Width", text_color=color.white)
+    table.cell(scoreTable, 1, 3, str.tostring(bb_width, "#.###"), text_color=bb_width < 0.08 ? color.green : color.white)
+    table.cell(scoreTable, 0, 4, "Trend", text_color=color.white)
+    table.cell(scoreTable, 1, 4, close > ema9 and ema9 > ema21 ? "UP" : "DOWN", text_color=close > ema9 ? color.green : color.red)
+    table.cell(scoreTable, 0, 5, "Signal", text_color=color.white)
+    signalText = strongBuy ? "BUY NOW" : buyEarly ? "BUY EARLY" : watchSignal ? "WATCH" : "HOLD"
+    table.cell(scoreTable, 1, 5, signalText, text_color=strongBuy ? color.green : buyEarly ? color.yellow : color.white)
+    table.cell(scoreTable, 0, 6, "Ticker", text_color=color.white)
+    table.cell(scoreTable, 1, 6, syminfo.ticker, text_color=color.white)
+
+// === ALERTS FOR 95 STOCKS SCREENER ===
+// This will fire when score >= threshold - TradingView will send webhook to Railway
+// Railway then does heavy analysis (80 days candles, sector linking) and sends Telegram
+
+alertcondition(explosion_score >= scoreThreshold, title="AI 95 BUY - Before Explosion", message='{"secret":"{{secret}}","ticker":"{{ticker}}","price":{{close}},"rsi":{{rsi}},"ema9":{{ema9}},"ema21":{{ema21}},"bb_width":{{bb_width}},"rvol":{{rvol}},"breakout":{{breakout}},"yellow_up":{{yellow_up}},"green":{{green_signal}},"score_tv":{{explosion_score}},"timeframe":"{{interval}}","volume":{{volume}}}')
+
+// Replace placeholders in message - TradingView will auto fill {{ticker}}, {{close}} etc
+// For secret, we use input - will be replaced manually in alert creation
+
+// Additional alert for strong buy
+alertcondition(strongBuy, title="AI 95 STRONG BUY NOW", message='{"secret":"mysecret123","ticker":"{{ticker}}","price":{{close}},"rsi":{{rsi_val}},"action":"BUY NOW","score_tv":{{explosion_score}},"yellow_up":true,"green":true,"breakout":{{breakout}}}')
+
+// How to use for 95 stocks screener:
+// 1. Add this indicator to chart
+// 2. Create Watchlist with 95 tickers from L3_sectors.json (SSD_Storage, AI_Cooling, AI_Power, etc)
+// 3. Right click chart -> Add Alert -> Condition: AI 95 Hybrid -> AI 95 BUY - Before Explosion
+// 4. Options: Once Per Bar Close
+// 5. Check Webhook URL: https://web-production-7cc71.up.railway.app/webhook/ai
+// 6. Message: keep the JSON above - Railway will parse it
+// 7. Repeat for each ticker OR use TradingView screener to apply to all 95 at once
+// 8. Old email alerts (yellow/green/red) keep untouched - they go to email separately
+
+// Sector linking info (for reference - Railway does this)
+// SSD_Storage -> AI_Cooling, Controller_Chip, Chip_Mfg
+// AI_Cooling -> SSD_Storage, AI_Power, Chip_Mfg
+// AI_Power -> AI_Cooling, Controller_Chip, Chip_Mfg, Quantum
+// Leaders: NVDA lifts DRAM, CRWV, AAOI, SIMO, MU etc - Railway predicts WILL EXPLODE NEXT
