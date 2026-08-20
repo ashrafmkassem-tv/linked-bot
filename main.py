@@ -606,17 +606,17 @@ def scan_L2():
 
 def scan_L3():
     print(f"[{datetime.now()}] L3 Sectors Scan {len(L3_SECTORS)}")
-    for sector_name, sector_data in L3_SECTORS.items():
-        for ticker in sector_data["tickers"]:
+        for sector_name, sector_data in L3_SECTORS.items():
+        tickers = sector_data["tickers"] if isinstance(sector_data, dict) else sector_data
+        keywords = sector_data.get("keywords", [sector_name]) if isinstance(sector_data, dict) else [sector_name]
+        for ticker in tickers:
             if not can_send(f"L3_{ticker}", 30): continue
             for n in get_hybrid(ticker)[:1]:
                 title = n["headline"]
                 if not title or is_dup(title): continue
                 if time.time() - n["datetime"] > 2*24*3600: continue
                 low = (title + " " + n.get("summary","")).lower()
-                has_sector = any(k.lower() in low for k in sector_data["keywords"]) or ticker.lower() in low
-                has_gov = any(k.lower() in low for k in GOV_KEYWORDS)
-                if has_sector and has_gov:
+                has_sector = any(k.lower() in low for k in keywords) or ticker.lower() in low
                     tg(f"L3 Sector {sector_name}\nTicker: {ticker}\n{title}\nLink: {n.get('url','')}")
                     break
 
