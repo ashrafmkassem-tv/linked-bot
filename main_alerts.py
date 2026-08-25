@@ -20,7 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# يدور على الملف في الروت او في watchlists/
 for p in ["L3_sectors.json", "watchlists/L3_sectors.json", "./watchlists/L3_sectors.json"]:
     if os.path.exists(p):
         L3_FILE = p
@@ -39,12 +38,13 @@ except Exception as e:
     total = 0
     logger.error(f"Failed to load {L3_FILE}: {e}")
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+# يدعم الاسمين القديم والجديد
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN_ALERTS") or os.getenv("TELEGRAM_TOKEN") or ""
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID_ALERTS") or ""
 
 def send_telegram(text: str):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        logger.warning("Telegram env not set")
+        logger.warning(f"Telegram env not set - TOKEN exists={bool(TELEGRAM_BOT_TOKEN)} CHAT exists={bool(TELEGRAM_CHAT_ID)}")
         return False
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -67,7 +67,7 @@ async def startup():
 
 @app.get("/")
 async def root():
-    return {"status": "online", "tickers": total, "file": L3_FILE, "note": "BOTH NOW PRESERVED - 98 FULL", "sectors": {k: len(v) for k, v in sectors.items()}}
+    return {"status": "online", "tickers": total, "file": L3_FILE, "note": "BOTH NOW PRESERVED - 98 FULL", "sectors": {k: len(v) for k, v in sectors.items()}, "telegram_configured": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)}
 
 @app.get("/health")
 async def health():
