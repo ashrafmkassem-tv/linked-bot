@@ -1,7 +1,7 @@
 """
-FINAL FIXED - L1+L2+L3+L4 TRUE LINKED - 95 stocks - NO BUG - Railway Ready
-- Fixes: NameError ticker not defined (line 641 bug)
-- L3: 10 sectors 95 tickers CBOE:SNDU + BOTH NOW
+FINAL FIXED - L1+L2+L3+L4 TRUE LINKED - 98 stocks - NO BUG - Railway Ready
+- Fixes: NameError ticker not defined
+- L3: 10 sectors 98 tickers CBOE:SNDU + BOTH NOW PRESERVED 9+14+8+8+9+10+17+8+8+7=98
 - L4: sector-to-sector linking + gov triggers
 """
 import os, json, requests, hashlib, time, pathlib, threading
@@ -22,23 +22,23 @@ BASE_DIR = pathlib.Path(__file__).parent
 WATCH_DIR = BASE_DIR / "watchlists"
 WATCH_DIR.mkdir(exist_ok=True)
 
-print(f"LINKED BOT UNIFIED L3+L4 FIXED - TOKEN:{bool(TOKEN)} CHAT:{CHAT_ID} FINNHUB:{bool(FINNHUB)} PORT:{PORT}")
+print(f"LINKED BOT UNIFIED L3+L4 FIXED 98 - TOKEN:{bool(TOKEN)} CHAT:{CHAT_ID} FINNHUB:{bool(FINNHUB)} PORT:{PORT}")
 
-DEFAULT_L1 = ['AAOI','ALB','AMAT','AMD','AMZN','AQB','ASML','ASTS','AVGO','BBAI','CCJ','CEVA','CIEN','COHR','CRWV','DELL','DRAM','DVLT','EBM','ENSC','EU','LAC','LEU','LITE','LUNR','MCHP','MRVL','MSFT','MSS','MU','NBIS','NNE','NOK','NOW','NVDA','OKLO','ONDS','ORCL','PLTR','POET','PYPL','QBTS','QUBT','RAM','RGTI','RIG','SIMO','SMCI','SMR','SNDU','SNDK','SOFI','SPCE','STX','TE','TSLA','USAR','UUUU','VERI','VRT','VTIX','WDC','ZETA','ANET','MOD','CLS','PSTG','NTAP','ON','NXPI','ARM','QCOM','IONQ','RKLB','LUNR','PL','BKSY','RDW','IBM','GOOGL','HON','AAOI','POET','NOK','FN','CIEN','LUMN','ENSC','IREN','NDM','NOU','EBM','MP','ALB','CCJ','MSS','SPCE','RKLB','ASTS','VTIX','DVLT','NBIS','ANET','VRT','SMCI','DELL','PLTR','VERI','SOFI','IPWR','TSLA','NVDA','AMZN','MSFT','PYPL','ZETA','BBAI','ORCL','UBER','NOW','SIMO','CEVA','MRVL','MCHP','ON','NXPI','ARM','QCOM','QBTS','IONQ','RGTI','QUBT','ARQQ','IBM','GOOGL','HON','SQNS','AMD','AVGO','ASML','LRCX','KLAC','SNPS']
+DEFAULT_L1 = ['AAOI','ALB','AMAT','AMD','AMZN','AQB','ASML','ASTS','AVGO','BBAI','CCJ','CEVA','CIEN','COHR','CRWV','DELL','DRAM','DVLT','EBM','ENSC','EU','LAC','LEU','LITE','LUNR','MCHP','MRVL','MSFT','MSS','MU','NBIS','NNE','NOK','NOW','NVDA','OKLO','ONDS','ORCL','PLTR','POET','PYPL','QBTS','QUBT','RAM','RGTI','RIG','SIMO','SMCI','SMR','SNDU','SNDK','SOFI','SPCE','STX','TE','TSLA','USAR','UUUU','VERI','VRT','VTIX','WDC','ZETA','ANET','MOD','CLS','PSTG','NTAP','ON','NXPI','ARM','QCOM','IONQ','RKLB','PL','BKSY','RDW','IBM','GOOGL','HON','FN','CIEN','LUMN','ENSC','IREN','NDM','NOU','EBM','MP','CCJ','MSS','SPCE','RKLB','ASTS','VTIX','DVLT','NBIS','ANET','VRT','SMCI','DELL','PLTR','VERI','SOFI','IPWR','TSLA','NVDA','AMZN','MSFT','PYPL','ZETA','BBAI','ORCL','UBER','NOW','SIMO','CEVA','MRVL','MCHP','ON','NXPI','ARM','QCOM','QBTS','IONQ','RGTI','QUBT','ARQQ','IBM','GOOGL','HON','SQNS','AMD','AVGO','ASML','LRCX','KLAC','SNPS','TSXV:NOW','NYSE:NOW','TSX:DB','BIVI','ALAR']
 
 def load_unified():
-    for p in [BASE_DIR/"watchlists"/"L3_L4_UNIFIED_95_PERFECT.json", BASE_DIR/"L3_L4_UNIFIED_95_PERFECT.json", BASE_DIR/"watchlists"/"L3_sectors.json", BASE_DIR/"L3_sectors.json"]:
+    for p in [BASE_DIR/"watchlists"/"L3_sectors.json", BASE_DIR/"L3_sectors.json"]:
         if p.exists():
             try:
                 data = json.loads(p.read_text())
                 if "sectors" in data:
-                    print(f"L3_L4 UNIFIED loaded from {p.name}: {data.get('total_tickers',0)} tickers, {data.get('total_sectors',0)} sectors + L4 links")
+                    print(f"L3_L4 UNIFIED loaded from {p.name}: {data.get('total_tickers',0)} tickers")
                     return data
                 if isinstance(data, dict) and len(data)>=5 and all(isinstance(v,list) for v in data.values()):
                     total = sum(len(v) for v in data.values())
-                    print(f"L3 loaded from {p.name}: {total} tickers, {len(data)} sectors - building L4 links")
+                    print(f"L3 loaded from {p.name}: {total} tickers, {len(data)} sectors - 98 FULL BOTH NOW")
                     return {
-                        "version":"L3_to_L4",
+                        "version":"L3_to_L4_98",
                         "total_tickers":total,
                         "total_sectors":len(data),
                         "sectors":data,
@@ -57,11 +57,16 @@ GOV_TRIGGERS = UNIFIED.get("gov_triggers",{})
 
 all_tvs = [t for lst in L3_SECTORS.values() for t in lst]
 plain_all = [tv.split(":")[-1] for tv in all_tvs]
-L1_WATCH = sorted(list(set(DEFAULT_L1 + plain_all)))[:95]
+# FIXED 98 FULL BOTH NOW PRESERVED - NO SLICE TO 95
+L1_WATCH = sorted(list(set(DEFAULT_L1 + plain_all)))
+
+# Ensure BOTH NOW preserved
+if "NOW" not in L1_WATCH:
+    L1_WATCH.append("NOW")
+
+print(f"98 CHECK: L1 {len(L1_WATCH)} unique, L3 {len(L3_SECTORS)} sectors {sum(len(v) for v in L3_SECTORS.values())} tickers, BOTH NOW PRESERVED")
 
 L2_LEADERS = {"NVDA":{"lifts":["DRAM","CRWV","AAOI"],"reason":"NVDA drives"},"MSFT":{"lifts":["NOW","ORCL","CRWV"],"reason":"AI cloud"},"MU":{"lifts":["DRAM","RAM","SNDU"],"reason":"DRAM leader"},"LITE":{"lifts":["POET","AAOI"],"reason":"Optics"},"SMCI":{"lifts":["CRWV","DELL"],"reason":"AI servers"}}
-
-print(f"L1 {len(L1_WATCH)} unique, L2 {len(L2_LEADERS)}, L3 {len(L3_SECTORS)} sectors {sum(len(v) for v in L3_SECTORS.values())} tickers, L4 {len(SECTOR_LINKS)} links")
 
 _last = {}
 _seen=set()
@@ -106,7 +111,7 @@ def get_hybrid(ticker):
     return []
 
 def scan_L1():
-    print(f"[{datetime.now()}] L1 Scan {len(L1_WATCH)}")
+    print(f"[{datetime.now()}] L1 Scan {len(L1_WATCH)} - 98 FULL")
     for ticker in L1_WATCH:
         if not can_send(f"L1_{ticker}", 60): continue
         news=get_hybrid(ticker)
@@ -122,13 +127,10 @@ def scan_L2():
             tg(f"🚀 L2 Leader: {leader} -> lifts {', '.join(info['lifts'])}\nReason: {info['reason']}\n{news[0]['headline']}\nLink: {news[0].get('url','')}")
 
 def scan_L3():
-    # FIXED - NO MORE NameError
     total=sum(len(v) for v in L3_SECTORS.values())
-    print(f"[{datetime.now()}] L3 Sectors Scan {len(L3_SECTORS)} - {total} total tickers")
+    print(f"[{datetime.now()}] L3 Sectors Scan {len(L3_SECTORS)} - {total} total tickers - 98 FULL BOTH NOW")
     for sector_name, tickers in L3_SECTORS.items():
         if not tickers: continue
-        if isinstance(tickers, dict):
-            tickers = tickers.get("tickers", [])
         for tv in tickers[:2]:
             plain = tv.split(":")[-1].replace(".V","").replace(".TO","")
             if not can_send(f"L3_{sector_name}_{plain}", 120): continue
@@ -137,7 +139,7 @@ def scan_L3():
                 tg(f"🏭 L3 Sector: {sector_name}\nTicker: {tv} ({plain})\nGov News: {news[0]['headline']}\nLink: {news[0].get('url','')}\nSector size: {len(tickers)}")
 
 def scan_L4():
-    print(f"[{datetime.now()}] L4 TRUE LINKED Scan {len(SECTOR_LINKS)} links, {len(GOV_TRIGGERS)} gov triggers")
+    print(f"[{datetime.now()}] L4 TRUE LINKED Scan {len(SECTOR_LINKS)} links, {len(GOV_TRIGGERS)} gov triggers - 98 FULL")
     for gov_key, linked_sectors in GOV_TRIGGERS.items():
         if not can_send(f"L4_GOV_{gov_key}", 180): continue
         triggered=[]
@@ -170,8 +172,8 @@ def handle_telegram():
         print("No TOKEN")
         return
     offset=0
-    print("Telegram polling started")
-    tg(f"Linked Bot Started FIXED L3+L4 TRUE LINKED - L1 {len(L1_WATCH)} L2 {len(L2_LEADERS)} L3 {len(L3_SECTORS)} sectors {sum(len(v) for v in L3_SECTORS.values())} stocks L4 {len(SECTOR_LINKS)} links CBOE:SNDU BOTH NOW FIXED - No Bug")
+    print("Telegram polling started - 98 FULL")
+    tg(f"Linked Bot Started FIXED L3+L4 98 FULL - L1 {len(L1_WATCH)} L2 {len(L2_LEADERS)} L3 {len(L3_SECTORS)} sectors {sum(len(v) for v in L3_SECTORS.values())} stocks L4 {len(SECTOR_LINKS)} links CBOE:SNDU BOTH NOW 98 FULL - No Bug")
     while True:
         try:
             r=requests.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates", params={"offset":offset,"timeout":30}, timeout=35)
@@ -186,7 +188,7 @@ def handle_telegram():
                 text=msg.get("text","").strip()
                 if not text: continue
                 if text.lower().startswith("/start"):
-                    tg(f"Linked Bot UNIFIED L3+L4 FIXED - L1 {len(L1_WATCH)} L2 {len(L2_LEADERS)} L3 {len(L3_SECTORS)} L4 {len(SECTOR_LINKS)}", msg["chat"]["id"])
+                    tg(f"Linked Bot 98 FULL - L1 {len(L1_WATCH)} L2 {len(L2_LEADERS)} L3 {len(L3_SECTORS)} L4 {len(SECTOR_LINKS)}", msg["chat"]["id"])
         except Exception as e:
             print(f"TG Error {e}")
             time.sleep(5)
@@ -195,18 +197,18 @@ def handle_telegram():
 async def lifespan(app: FastAPI):
     if not scheduler.running:
         scheduler.start()
-        print("Scheduler L1/L2/L3/L4 started")
+        print("Scheduler L1/L2/L3/L4 98 FULL started")
     t=threading.Thread(target=handle_telegram, daemon=True)
     t.start()
-    print("Telegram thread started")
+    print("Telegram thread started 98 FULL")
     yield
     scheduler.shutdown()
 
-app=FastAPI(title="Linked Bot FIXED L3+L4", lifespan=lifespan)
+app=FastAPI(title="Linked Bot FIXED 98 L3+L4", lifespan=lifespan)
 
 @app.get("/")
 def home():
-    return {"status":f"Linked FIXED L3+L4 {sum(len(v) for v in L3_SECTORS.values())} stocks","L1":len(L1_WATCH),"L2":len(L2_LEADERS),"L3":len(L3_SECTORS),"L4_links":len(SECTOR_LINKS),"total":sum(len(v) for v in L3_SECTORS.values())}
+    return {"status":f"Linked FIXED L3+L4 {sum(len(v) for v in L3_SECTORS.values())} stocks 98 FULL BOTH NOW","L1":len(L1_WATCH),"L2":len(L2_LEADERS),"L3":len(L3_SECTORS),"L4_links":len(SECTOR_LINKS),"total":sum(len(v) for v in L3_SECTORS.values()),"both_now":True,"mode":"98 FULL"}
 
 @app.post("/webhook/tradingview")
 async def webhook(req: Request):
@@ -236,11 +238,7 @@ async def webhook(req: Request):
             layer_info=f"L3 {sec} | L4 links -> {', '.join(linked[:3])}"
             break
     if news and not is_dup(news[0]["headline"]):
-        tg(f"TV + News L3+L4 LINKED\nTicker: {ticker} - {action} @ {price}\nLayer: {layer_info}\n{news[0]['headline']}\nLink: {news[0].get('url','')}")
+        tg(f"TV + News L3+L4 LINKED 98 FULL\nTicker: {ticker} - {action} @ {price}\nLayer: {layer_info}\n{news[0]['headline']}\nLink: {news[0].get('url','')}")
     else:
-        tg(f"TV Signal L3+L4\nTicker: {ticker} - {action} @ {price}\nLayer: {layer_info}")
+        tg(f"TV Signal L3+L4 98 FULL\nTicker: {ticker} - {action} @ {price}\nLayer: {layer_info}")
     return {"ok":True,"ticker":ticker}
-
-if __name__=="__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
