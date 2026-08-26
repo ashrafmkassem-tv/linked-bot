@@ -1,95 +1,133 @@
-import os, json, logging, requests
+"""
+MODE DIRECT - FINAL 98 - NO TradingView needed
+- 98 tickers 10 sectors BOTH NOW PRESERVED
+- Scans every 5min NY 08:30-16:00 via Finnhub
+"""
+import os, json, requests, hashlib, time, pathlib, threading
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
-import pytz
+from zoneinfo import ZoneInfo
+from dotenv import load_dotenv
+from contextlib import asynccontextmanager
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("uvicorn")
-app = FastAPI(title="L3 98 FINAL FIXED 70/15/5 0830-1600")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+load_dotenv()
+TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+FINNHUB = os.getenv("FINNHUB_API_KEY", "")
+PORT = int(os.getenv("PORT", "8000"))
+BASE_DIR = pathlib.Path(__file__).parent
 
-for p in ["L3_sectors.json", "watchlists/L3_sectors.json", "./watchlists/L3_sectors.json"]:
-    if os.path.exists(p):
-        L3_FILE = p; break
-else:
-    L3_FILE = "L3_sectors.json"
+def load_L3():
+    for p in [BASE_DIR/"L3_sectors.json", BASE_DIR/"watchlists"/"L3_sectors.json"]:
+        if p.exists():
+            data = json.loads(p.read_text())
+            if isinstance(data, dict):
+                total = sum(len(v) for v in data.values())
+                print(f"L3 DIRECT {total} tickers")
+                return data
+    return {}
 
-try:
-    with open(L3_FILE, "r") as f:
-        sectors = json.load(f)
-    all_tickers = [t for lst in sectors.values() for t in lst]
-    total = len(all_tickers)
-    logger.info(f"ALERTS WATCH 98: {total} FULL BOTH NOW 70 SCORE from {L3_FILE}")
-except Exception as e:
-    sectors = {}; total = 0
-    logger.error(f"Failed {L3_FILE}: {e}")
+L3_SECTORS = load_L3()
+SECTOR_LINKS = {
+    "SSD_Storage":["AI_Cooling","Controller_Chip","Chip_Mfg"],
+    "AI_Cooling":["SSD_Storage","AI_Power","Chip_Mfg"],
+    "AI_Power":["AI_Cooling","Controller_Chip","Chip_Mfg","Quantum"],
+    "Controller_Chip":["Chip_Mfg","SSD_Storage","AI_Cooling"],
+    "Chip_Mfg":["Controller_Chip","SSD_Storage","Optical"],
+    "Optical":["Chip_Mfg","Space_Drones"],
+    "SMR_Nuclear":["Energy_Metals","AI_Power"],
+    "Energy_Metals":["SMR_Nuclear","AI_Power"],
+    "Space_Drones":["Optical","Energy_Metals"],
+    "Quantum":["AI_Power","Chip_Mfg"]
+}
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN_ALERTS") or os.getenv("TELEGRAM_TOKEN") or ""
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID_ALERTS") or ""
-
-_last = {}
-def can_send(key, mins):
-    now = datetime.utcnow()
-    if key in _last and now - _last[key] < timedelta(minutes=mins): return False
-    _last[key] = now; return True
-
+_last = {}; _seen=set()
 def is_ny_session():
     try:
-        ny = pytz.timezone("America/New_York")
-        n = datetime.now(ny)
-        if n.weekday() >= 5: return False
-        hm = n.hour*60 + n.minute
-        return (8*60+30) <= hm <= (16*60)
+        ny = datetime.now(ZoneInfo("America/New_York"))
+        if ny.weekday()>=5: return False
+        hm = ny.hour*60+ny.minute
+        return 510 <= hm <= 960
     except: return True
 
-def send_telegram(text: str):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID: return False
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        r = requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}, timeout=60)
-        return r.status_code == 200
-    except: return False
+def can_send(k, mins=60):
+    now=datetime.utcnow()
+    if k in _last and now-_last[k] < timedelta(minutes=mins): return False
+    _last[k]=now; return True
 
-@app.on_event("startup")
-async def startup():
-    send_telegram(f"🚀 <b>ALERTS BOT 98 FINAL FIXED</b>\n98 Stocks | Score 70+ | CD 15m/5m | 08:30-16:00 NY\nBOTH NOW PRESERVED | {total}")
+def is_dup(h):
+    hd=hashlib.md5(h.encode()).hexdigest()
+    if hd in _seen: return True
+    _seen.add(hd)
+    if len(_seen)>1000: _seen.clear()
+    return False
+
+def tg(text):
+    if not TOKEN or not CHAT_ID: return False
+    try:
+        r=requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", json={"chat_id":CHAT_ID,"text":text[:4000]}, timeout=15)
+        print(f"TG {r.status_code}: {text[:80]}"); return True
+    except Exception as e: print(e); return False
+
+def get_news(ticker):
+    if not FINNHUB: return []
+    try:
+        clean=ticker.split(":")[-1].replace(".V","").replace(".TO","")
+        url=f"https://finnhub.io/api/v1/company-news?symbol={clean}&from={(datetime.utcnow()-timedelta(days=2)).strftime('%Y-%m-%d')}&to={datetime.utcnow().strftime('%Y-%m-%d')}&token={FINNHUB}"
+        r=requests.get(url, timeout=10)
+        if r.status_code==200:
+            return [n for n in r.json()[:3] if n.get("headline")]
+    except: pass
+    return []
+
+def scan_L3_direct():
+    if not is_ny_session(): print("SKIP outside NY"); return
+    total=sum(len(v) for v in L3_SECTORS.values())
+    print(f"[{datetime.now()}] DIRECT SCAN {total} - 98 FULL")
+    for sector, tickers in L3_SECTORS.items():
+        for tv in tickers:
+            plain=tv.split(":")[-1].replace(".V","").replace(".TO","")
+            if not can_send(f"{sector}_{plain}",60): continue
+            news=get_news(plain)
+            if news and not is_dup(news[0]["headline"]):
+                tg(f"🏭 DIRECT L3 {sector}\nTicker: {tv}\n{news[0]['headline']}\n{news[0].get('url','')}\nTotal 98 BOTH NOW")
+
+scheduler=BackgroundScheduler()
+scheduler.add_job(scan_L3_direct,'interval',minutes=5,id="L3_DIRECT")
+
+def tg_poll():
+    if not TOKEN: return
+    offset=0
+    tg(f"✅ DIRECT MODE 98 ONLINE\nBOTH NOW PRESERVED\nSSD:9 Energy:14 Optical:8 SMR:8 Space:9 Cooling:10 Power:17 Controller:8 Quantum:8 Chip:7\nScan 5min NY - NO TradingView")
+    while True:
+        try:
+            r=requests.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates", params={"offset":offset,"timeout":30}, timeout=35)
+            for upd in r.json().get("result",[]):
+                offset=upd["update_id"]+1
+        except: time.sleep(5)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.start()
+    threading.Thread(target=tg_poll, daemon=True).start()
+    yield
+    scheduler.shutdown()
+
+app=FastAPI(lifespan=lifespan)
 
 @app.get("/")
-async def root():
-    return {"status":"online","tickers":total,"file":L3_FILE,"both_now":True,"sectors":{k:len(v) for k,v in sectors.items()},"ny":is_ny_session()}
+def home():
+    total=sum(len(v) for v in L3_SECTORS.values())
+    return {"status":"online","mode":"DIRECT 98 NO TradingView","tickers":total,"both_now":True,"sectors":{k:len(v) for k,v in L3_SECTORS.items()},"ny":is_ny_session()}
 
 @app.post("/webhook")
-async def webhook_post(request: Request):
-    try: data = await request.json()
-    except:
-        try: body = await request.body(); data = json.loads(body.decode() if body else "{}")
-        except: data={}
-    ticker_raw = data.get("ticker") or data.get("symbol") or "UNKNOWN"
-    clean = ticker_raw.split(":")[-1] if ":" in ticker_raw else ticker_raw
-    clean_u = clean.upper().strip()
-    try: score = float(data.get("score",0) or 0)
-    except: score = 0
-    level = data.get("level",""); price = data.get("price",""); rvol = data.get("rvol","")
+async def webhook(req: Request):
+    data=await req.json()
+    ticker=data.get("ticker","").split(":")[-1]
+    if not is_ny_session(): return {"status":"skipped","reason":"outside NY"}
+    tg(f"🔥 ALERT DIRECT: {ticker} - 98 FULL")
+    return {"ok":True}
 
-    # FIXED 70
-    if score!=0 and score < 70:
-        return JSONResponse({"status":"skipped","reason":"score <70","score":score})
-    # FIXED NY TIME
-    if not is_ny_session():
-        return JSONResponse({"status":"skipped","reason":"outside 08:30-16:00 NY"})
-    # FIXED COOLDOWN 15m / 5m
-    is_breakout = "BREAKOUT" in level.upper() or score >= 85
-    cooldown_mins = 5 if is_breakout else 15
-    if not can_send(f"ALERT_{clean_u}", cooldown_mins):
-        return JSONResponse({"status":"cooldown","cd":cooldown_mins})
-
-    msg = f"🔥 <b>L3 ALERT: {clean_u}</b>\nScore: <b>{score}</b> {level}\nPrice: {price} | RVOL: {rvol}\nTicker: {ticker_raw} | CD:{cooldown_mins}m"
-    ok = send_telegram(msg)
-    return JSONResponse({"status":"ok","ticker":clean_u,"telegram_sent":ok,"score":score,"cd":cooldown_mins})
-
-@app.post("/webhook/ai")
-async def webhook_ai(r: Request): return await webhook_post(r)
-@app.post("/webhook/tradingview")
-async def webhook_tv(r: Request): return await webhook_post(r)
+if __name__=="__main__":
+    import uvicorn; uvicorn.run(app, host="0.0.0.0", port=PORT)
