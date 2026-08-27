@@ -1,9 +1,8 @@
 """
 MODE DIRECT - FINAL 98 - NO TradingView needed
-- 98 tickers 10 sectors BOTH NOW PRESERVED
-- Scans every 5min via Finnhub
-- Sends: Price + % + Vol + BUY + Leader + Reason + Entry/Target/Stop
-- Uses TELEGRAM_TOKEN_ALERTS / TELEGRAM_CHAT_ID_ALERTS - separate from news bot
+98 tickers 10 sectors BOTH NOW PRESERVED
+Scans every 5min via Finnhub
+Sends: Price + % + Vol + BUY + Leader + Reason + Entry/Target/Stop
 """
 import os, json, requests, time, pathlib
 from fastapi import FastAPI
@@ -105,18 +104,16 @@ def build_buy_message(leader_full, leader_q, laggards_q, sector):
         lifts_parts.append(f"{clean(lf)} ${lq['price']:.2f} ({lq['pct']:+.1f}%)")
     lifts_str = " / ".join(lifts_parts) if lifts_parts else "N/A"
 
-    msg = f"🚀 BUY NOW: {leader_full} ${price:.2f} ({pct:+.1f}%) Vol {vol_x:.1f}x avg\n"
+    msg = f"BUY NOW: {leader_full} ${price:.2f} ({pct:+.1f}%) Vol {vol_x:.1f}x avg\n"
     msg += f"L2 LEADER: {sym} is the leader\n"
     msg += f"REASON: {reason}\n"
     msg += f"Gov: {gov} | Sector: {sector} size {len(L3_SECTORS[sector])}\n"
     msg += f"LIFTS: {lifts_str}\n"
     msg += f"Entry: ${entry_low:.2f}-${entry_high:.2f} Target: ${target1:.0f} / ${target2:.0f} Stop: ${stop:.2f}"
-
     return msg.strip()
 
 def scan_direct_98():
     if not L3_SECTORS:
-        print("No L3 sectors")
         return
     print(f"[{datetime.now()}] DIRECT SCAN 98 - START 98 FULL BOTH NOW")
     for sector, tvs in L3_SECTORS.items():
@@ -135,7 +132,6 @@ def scan_direct_98():
         if not can_send(f"ALERT_{sector}_{clean(leader_full)}", 15): continue
         laggards = [(f,d) for f,d in quotes_sorted[1:] if d['pct'] < leader_q['pct']]
         msg = build_buy_message(leader_full, leader_q, laggards, sector)
-        print(f"[{datetime.now()}] L2 Leader: {clean(leader_full)} -> lifts {','.join([clean(f) for f,_ in laggards[:3]])} | {leader_q['pct']:+.1f}% ${leader_q['price']:.2f}")
         tg(msg)
     print(f"[{datetime.now()}] DIRECT SCAN 98 - Done")
 
@@ -146,7 +142,7 @@ scheduler.add_job(scan_direct_98, 'interval', minutes=5, id="DIRECT_98")
 async def lifespan(app: FastAPI):
     scheduler.start()
     print(f"Scheduler DIRECT 98 started - {sum(len(v) for v in L3_SECTORS.values())} stocks 98 FULL BOTH NOW")
-    tg(f"🚀 ALERTS BOT DIRECT 98 STARTED\n98 FULL BOTH NOW PRESERVED\nPrice+Pct+Vol+BUY+Entry/Stop\nTSXV:NOW NYSE:NOW")
+    tg(f"ALERTS BOT DIRECT 98 STARTED\n98 FULL BOTH NOW PRESERVED\nPrice+Pct+Vol+BUY+Entry/Stop")
     yield
     scheduler.shutdown()
 
@@ -154,11 +150,11 @@ app = FastAPI(title="ALERTS BOT DIRECT 98", lifespan=lifespan)
 
 @app.get("/")
 def home():
-    return {"status":f"ALERTS DIRECT 98 FULL BOTH NOW - {sum(len(v) for v in L3_SECTORS.values())} stocks","sectors":len(L3_SECTORS)}
+    return {"status":f"ALERTS DIRECT 98 FULL BOTH NOW - {sum(len(v) for v in L3_SECTORS.values())} stocks"}
 
 @app.get("/health")
 def health():
-    return {"ok":True,"total":sum(len(v) for v in L3_SECTORS.values()),"token_alerts":bool(TOKEN)}
+    return {"ok":True,"total":sum(len(v) for v in L3_SECTORS.values())}
 
 if __name__ == "__main__":
     import uvicorn
