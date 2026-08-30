@@ -1,164 +1,179 @@
-import os, json, requests, time, pathlib, threading, math, hashlib
-from fastapi import FastAPI, Request
+# DIRECT MODE ONLY - NO TRADINGVIEW - V2 Alpha PREPARE
+# 98 tickers FULL BOTH NOW - 09:00-16:00 ET Mon-Fri only (30min pre-market to close)
+# PREPARE logic: flat -0.8% to +0.8%, Score 65, BB 0.05, RSI 53, rVol 1.2x, Stop 3.5%
+# Anti-duplicate 90min cooldown - Alerts line verified
+
+import os, json, requests, time, pathlib, threading, math
+from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
-from zoneinfo import ZoneInfo
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_TOKEN_ALERTS", "")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID_ALERTS", "")
 FINNHUB = os.getenv("FINNHUB_API_KEY_ALERTS", os.getenv("FINNHUB_API_KEY", ""))
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET_ALERTS", "mysecret123")
 PORT = int(os.getenv("PORT", "8000"))
 
-ET_TZ = ZoneInfo("America/New_York")
-
-def is_market_open():
-    try:
-        now = datetime.now(ET_TZ)
-        if now.weekday() >= 5: # Sat Sun closed
-            return False
-        # 9:00 AM to 4:00 PM ET - 30 min pre-market
-        start = now.replace(hour=9, minute=0, second=0, microsecond=0)
-        end = now.replace(hour=16, minute=0, second=0, microsecond=0)
-        return start <= now <= end
-    except:
-        now = datetime.utcnow()
-        if now.weekday() >= 5: return False
-        return (13*60) <= (now.hour*60+now.minute) <= (20*60)
-
 BASE_DIR = pathlib.Path(__file__).parent
+ET_ZONE = ZoneInfo("America/New_York")
+
 def load_sectors():
-    for p in [BASE_DIR/"L3_sectors.json", BASE_DIR/"watchlists"/"L3_sectors.json"]:
+    for p in [BASE_DIR/"L3_sectors.json", pathlib.Path("/mnt/data/L3_sectors.json")]:
         if p.exists():
             try:
                 data = json.loads(p.read_text())
-                if isinstance(data, dict) and all(isinstance(v,list) for v in data.values()): return data
+                if isinstance(data, dict) and all(isinstance(v,list) for v in data.values()):
+                    return data
             except: pass
     return {}
 
 L3_SECTORS = load_sectors()
 all_tvs = [t for lst in L3_SECTORS.values() for t in lst]
-WATCH_98 = sorted(list(set([tv.split(":")[-1].replace(".V","").replace(".TO","").upper() for tv in all_tvs])))
-print(f"PREPARE BOT 98 - MARKET 9:00-16:00 ET ONLY - {len(WATCH_98)} tickers")
+WATCH_98 = sorted(set([t.split(":")[-1].replace(".V","").replace(".TO","").upper() for t in all_tvs]))
+print(f"DIRECT SCAN 98 - {len(WATCH_98)} tickers - RIG present: {'RIG' in WATCH_98}")
 
 _last = {}
-_seen_hash = set()
 def can_send(k, mins=90):
-    now = datetime.utcnow()
+    now = datetime.now(ET_ZONE)
     if k in _last and now - _last[k] < timedelta(minutes=mins): return False
-    _last[k] = now
+    _last[k]=now
     return True
 
-def is_dup(text):
-    h = hashlib.md5(text.encode()).hexdigest()
-    if h in _seen_hash: return True
-    _seen_hash.add(h)
-    if len(_seen_hash) > 1000: _seen_hash.clear()
-    return False
+def is_market_hours():
+    now_et = datetime.now(ET_ZONE)
+    if now_et.weekday() > 4: return False
+    start = now_et.replace(hour=9, minute=0, second=0, microsecond=0)
+    end = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+    return start <= now_et <= end
 
-def tg(text, chat_id=None):
-    if not TOKEN or not (chat_id or CHAT_ID): return
+def tg(text):
+    if not TOKEN or not CHAT_ID:
+        print(f"[SKIP] {text[:100]}"); return False
     try:
-        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-            json={"chat_id": chat_id or CHAT_ID, "text": text[:4000], "disable_web_page_preview": True}, timeout=10)
-    except: pass
+        r = requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                          json={"chat_id":CHAT_ID,"text":text[:4000],"disable_web_page_preview":True}, timeout=10)
+        print(f"[ALERT {r.status_code}] {text[:120]}")
+        return r.status_code==200
+    except Exception as e:
+        print(f"TG Error {e}"); return False
 
 def get_candles(sym, days=80):
     if not FINNHUB: return None
     try:
-        to_ts = int(datetime.utcnow().timestamp())
-        from_ts = int((datetime.utcnow() - timedelta(days=days)).timestamp())
-        r = requests.get(f"https://finnhub.io/api/v1/stock/candle?symbol={sym}&resolution=D&from={from_ts}&to={to_ts}&token={FINNHUB}", timeout=12)
-        d = r.json()
-        if d.get("s")!= "ok" or not d.get("c"): return None
-        return d
+        clean = sym.split(":")[-1].replace(".V","").replace(".TO","").upper()
+        to_ts = int(datetime.now(ZoneInfo("UTC")).timestamp())
+        from_ts = int((datetime.now(ZoneInfo("UTC"))-timedelta(days=days)).timestamp())
+        url = f"https://finnhub.io/api/v1/stock/candle?symbol={clean}&resolution=D&from={from_ts}&to={to_ts}&token={FINNHUB}"
+        r=requests.get(url, timeout=12)
+        if r.status_code!=200: return None
+        d=r.json()
+        if d.get("s")!="ok" or not d.get("c"): return None
+        return {"c":d["c"],"v":d["v"]}
     except: return None
 
-def sma(p, n): return sum(p[-n:])/n if len(p)>=n else None
-def ema(p, n):
-    if len(p)<n: return None
-    k=2/(n+1); e=sum(p[:n])/n
-    for x in p[n:]: e=x*k+e*(1-k)
+def ema(prices,p):
+    if len(prices)<p: return None
+    k=2/(p+1); e=sum(prices[:p])/p
+    for x in prices[p:]: e=x*k+e*(1-k)
     return e
-def rsi(p, n=14):
-    if len(p)<n+1: return 50
+
+def rsi_calc(prices,per=14):
+    if len(prices)<per+1: return 50
     g=l=0
-    for i in range(1,n+1):
-        d=p[-i]-p[-i-1]
-        if d>0: g+=d
-        else: l-=d
+    for i in range(1,per+1):
+        diff=prices[-i]-prices[-i-1]
+        if diff>0: g+=diff
+        else: l-=diff
     if l==0: return 100
     return 100-(100/(1+g/l))
-def bb_width(p, n=20):
-    s=sma(p,n)
-    if not s: return None
-    var=sum((x-s)**2 for x in p[-n:])/n
-    return (2*math.sqrt(var)*2)/s if s else None
+
+def bollinger(prices,per=20):
+    if len(prices)<per: return None
+    s=sum(prices[-per:])/per
+    var=sum((x-s)**2 for x in prices[-per:])/per
+    std=math.sqrt(var)
+    up=s+2*std; lo=s-2*std
+    width=(up-lo)/s if s!=0 else 0
+    pct=(prices[-1]-lo)/(up-lo) if up!=lo else 0.5
+    return {"width":width,"pct":pct}
+
+def rvol_calc(vols,per=20):
+    if len(vols)<per+1: return 1.0
+    avg=sum(vols[-per-1:-1])/per
+    return vols[-1]/avg if avg!=0 else 1.0
 
 def analyze_prepare(ticker):
-    d=get_candles(ticker, 80)
-    if not d or len(d["c"])<30: return None
-    c=d["c"]; v=d["v"]
-    price=c[-1]
-    pct_today = (c[-1]-c[-2])/c[-2]*100 if c[-2]!=0 else 0
-
-    # MUST be flat, not already +1% or +2%
-    if not (-0.8 <= pct_today <= 0.8): return None
-
-    e9=ema(c,9); e21=ema(c,21); s20=sma(c,20)
-    r=rsi(c,14); bb=bb_width(c,20)
-    if not all([e9,e21,s20,bb]): return None
-    rvol = (v[-1]/(sum(v[-21:-1])/20)) if sum(v[-21:-1])!=0 else 1
-
-    # PREPARE filters - before fly
-    if not (0.02 <= bb <= 0.09): return None # squeeze
-    if not (46 <= r <= 59): return None # not pumped
-    if not (0.7 <= rvol <= 1.6): return None # building, not exploded
-    if abs(e9-e21)/price > 0.015: return None # EMAs compressed
-    if abs(price-s20)/s20 > 0.025: return None # close to SMA20
-
+    daily=get_candles(ticker,80)
+    if not daily or len(daily["c"])<20: return None
+    c=daily["c"]; v=daily["v"]
+    price=c[-1]; prev=c[-2]
+    chg=(price-prev)/prev*100 if prev!=0 else 0
+    if not (-0.8 <= chg <= 0.8): return None
+    rsi=rsi_calc(c); bb=bollinger(c); rv=rvol_calc(v)
+    if not bb: return None
     score=0
-    if 50<=r<=56: score+=30
-    if bb<0.06: score+=30
-    elif bb<0.08: score+=20
-    if 1.0<=rvol<=1.5: score+=25
-    if e9>e21: score+=15
-
-    if score>=60:
-        return {"sym":ticker,"price":price,"score":score,"rsi":r,"rvol":rvol,"bb":bb,"pct":pct_today,
-                "entry_low":price*0.992,"entry_high":price*1.008,"stop":price*0.965,"t1":price*1.08,"t2":price*1.18}
+    if -0.8 <= chg <= 0.8: score+=30
+    if 50 <= rsi <= 56: score+=25
+    elif 48 <= rsi <= 60: score+=20
+    if bb["width"] <= 0.05: score+=25
+    elif bb["width"] <= 0.08: score+=15
+    if rv >= 1.2: score+=15
+    if score<65: return None
+    return {"symbol":ticker,"price":price,"chg":chg,"score":score,"rsi":rsi,"rvol":rv,"bb":bb["width"],"stop":price*0.965,"t1":price*1.18,"t2":price*1.35}
 
 scheduler=BackgroundScheduler()
-def scan_prepare():
-    if not is_market_open():
-        print(f"Market CLOSED {datetime.now(ET_TZ)}")
-        return
-    for t in WATCH_98:
-        if not can_send(f"PREP_{t}", 90): continue
-        res=analyze_prepare(t)
-        if not res: continue
-        msg=(f"PREPARE: {res['sym']} ${res['price']:.2f} {res['pct']:+.2f}% Score {res['score']}/100\n"
-             f"Setup: BB {res['bb']:.3f} RSI {res['rsi']:.0f} rVol {res['rvol']:.1f}x EMA 9/21 compressed\n"
-             f"State: Still flat, preparing to move - catch from start\n"
-             f"Entry: ${res['entry_low']:.2f}-${res['entry_high']:.2f} Stop: ${res['stop']:.2f} (3.5%)\n"
-             f"Target: ${res['t1']:.2f} / ${res['t2']:.2f}")
-        if is_dup(msg): continue
-        tg(msg)
-        time.sleep(1)
 
-scheduler.add_job(scan_prepare, 'interval', minutes=2, id="PREP")
+def direct_scan_98():
+    now_et=datetime.now(ET_ZONE)
+    ts=now_et.strftime("%Y-%m-%d %H:%M:%S")
+    if not is_market_hours():
+        print(f"[{ts} ET] DIRECT SCAN 98 - Skip outside 09:00-16:00 ET Mon-Fri")
+        return
+    print(f"[{ts} ET] DIRECT SCAN 98 - START 98 FULL BOTH NOW")
+    found=0
+    for t in WATCH_98:
+        try:
+            res=analyze_prepare(t)
+            if not res: time.sleep(0.2); continue
+            key=f"PREPARE_{res['symbol']}"
+            if not can_send(key,90): continue
+            found+=1
+            msg=(f"PREPARE: {res['symbol']} ${res['price']:.2f} ({res['chg']:+.2f}%) Score {res['score']}/100\n"
+                 f"Flat -0.8 to +0.8% | RSI {res['rsi']:.1f} | rVol {res['rvol']:.2f}x | BB {res['bb']:.3f}\n"
+                 f"Entry ${res['price']:.2f} Target ${res['t1']:.2f} / ${res['t2']:.2f} Stop ${res['stop']:.2f} (3.5%)")
+            tg(msg)
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"Scan err {t}: {e}")
+    print(f"[{ts} ET] DIRECT SCAN 98 - Done Found {found} - 98 FULL BOTH NOW")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if not scheduler.running: scheduler.start()
+    if not scheduler.running:
+        scheduler.add_job(direct_scan_98,'interval',minutes=5,id='scan98')
+        scheduler.start()
+        print("Scheduler DIRECT SCAN 98 every 5min - 09:00-16:00 ET only - NO TradingView")
     yield
     scheduler.shutdown()
 
-app=FastAPI(lifespan=lifespan)
+app=FastAPI(title="DIRECT 98 PREPARE - No TV", lifespan=lifespan)
+
 @app.get("/")
-def home(): return {"market": "OPEN" if is_market_open() else "CLOSED", "time_et": str(datetime.now(ET_TZ)), "watch": len(WATCH_98)}
+def home():
+    return {"status":f"DIRECT 98 PREPARE {len(WATCH_98)} - 09:00-16:00 ET Mon-Fri - No TradingView","market_open":is_market_hours(),"et_now":datetime.now(ET_ZONE).isoformat()}
+
 @app.get("/health")
-def health(): return {"ok":True,"market_open":is_market_open()}
+def health():
+    return {"ok":True,"count":len(WATCH_98),"market_open":is_market_hours(),"rig":"RIG" in WATCH_98}
+
+@app.get("/scan")
+def manual():
+    threading.Thread(target=direct_scan_98,daemon=True).start()
+    return {"started":"DIRECT SCAN 98"}
+
+if __name__=="__main__":
+    import uvicorn
+    uvicorn.run(app,host="0.0.0.0",port=PORT)
