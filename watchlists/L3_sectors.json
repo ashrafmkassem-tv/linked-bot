@@ -116,5 +116,26 @@
     "NASDAQ:LRCX",
     "NASDAQ:KLAC",
     "NASDAQ:SNPS"
+  ],
+  "AMZN_LIFTS": [
+    "NASDAQ:AMZN",
+    "NASDAQ:SHOP",
+    "NASDAQ:MELI",
+    "NASDAQ:ETSY",
+    "NASDAQ:PLTR",
+    "NASDAQ:VERI",
+    "NASDAQ:SOFI",
+    "NYSE:UPS",
+    "NYSE:ANET",
+    "NASDAQ:SMCI"
+  ],
+  "AMZN_LIFTED_BY": [
+    "NASDAQ:MSFT",
+    "NASDAQ:GOOGL",
+    "NASDAQ:NVDA",
+    "NASDAQ:META",
+    "NYSE:ORCL",
+    "NASDAQ:AMD",
+    "NASDAQ:AMZN"
   ]
-}
+  }
