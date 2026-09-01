@@ -1,0 +1,1 @@
+web: gunicorn main_gainz_5stocks:app
