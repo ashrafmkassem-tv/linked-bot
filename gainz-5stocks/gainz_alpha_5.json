@@ -25,5 +25,14 @@
     "timestamp_utc": "2026-09-03T05:38:39.268475+00:00",
     "source": "GainzAlgo Alpha",
     "raw_message": "{\"ticker\":\"AAPL\",\"action\":\"BUY\",\"price\":150,\"timeframe\":\"1D\"}"
+  },
+  {
+    "ticker": "RIG",
+    "action": "BUY",
+    "price": "5.23",
+    "timeframe": "5m",
+    "timestamp_utc": "2026-09-03T10:16:48.207759+00:00",
+    "source": "GainzAlgo Alpha",
+    "raw_message": "{\n  \"ticker\": \"RIG\",\n  \"action\": \"BUY\",\n  \"price\": \"5.23\",\n  \"timeframe\": \"5m\",\n  \"text\": \"RIG 5m BUY @ 5.23\"\n}"
   }
 ]
