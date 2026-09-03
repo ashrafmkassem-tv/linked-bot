@@ -1,5 +1,4 @@
 {
- 
   "SSD_Storage": [
     "CBOE:DRAM",
     "CBOE:RAM",
@@ -45,7 +44,8 @@
     "NYSE:OKLO",
     "NASDAQ:NNE",
     "AMEX:LEU",
-    "AMEX:UEC"
+    "AMEX:UEC",
+    "NASDAQ:KEEL"
   ],
   "Space_Drones": [
     "NASDAQ:MSS",
@@ -116,7 +116,8 @@
     "NASDAQ:ASML",
     "NASDAQ:LRCX",
     "NASDAQ:KLAC",
-    "NASDAQ:SNPS"
+    "NASDAQ:SNPS",
+    "NYSE:SQNS"
   ],
   "AMZN_LIFTS": [
     "NASDAQ:AMZN",
@@ -138,5 +139,14 @@
     "NYSE:ORCL",
     "NASDAQ:AMD",
     "NASDAQ:AMZN"
+  ],
+  "FINTECH": [
+    "NYSE:KLAR"
+  ],
+  "CONSUMER_TECH": [
+    "NASDAQ:GPRO"
+  ],
+  "SOFTWARE_AUTOMATION": [
+    "NYSE:PATH"
   ]
-  }
+}
