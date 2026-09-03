@@ -1,5 +1,6 @@
+
 # DIRECT MODE ONLY - NO TRADINGVIEW - V2 Alpha PREPARE
-# 98 tickers FULL BOTH NOW - 09:00-16:00 ET Mon-Fri only (30min pre-market to close)
+# 105 tickers FULL BOTH NOW - auto count - 09:00-16:00 ET Mon-Fri only (30min pre-market to close)
 # PREPARE logic: flat -0.8% to +0.8%, Score 65, BB 0.05, RSI 53, rVol 1.2x, Stop 3.5%
 # Anti-duplicate 90min cooldown - Alerts line verified
 
@@ -32,8 +33,9 @@ def load_sectors():
 
 L3_SECTORS = load_sectors()
 all_tvs = [t for lst in L3_SECTORS.values() for t in lst]
-WATCH_98 = sorted(set([t.split(":")[-1].replace(".V","").replace(".TO","").upper() for t in all_tvs]))
-print(f"DIRECT SCAN 98 - {len(WATCH_98)} tickers - RIG present: {'RIG' in WATCH_98}")
+WATCH_LIST = sorted(set([t.split(":")[-1].replace(".V","").replace(".TO","").upper() for t in all_tvs]))
+WATCH_98 = WATCH_LIST  # keep compat
+print(f"DIRECT SCAN {len(WATCH_LIST)} - {len(WATCH_LIST)} tickers - RIG present: {'RIG' in WATCH_LIST}")
 
 _last = {}
 def can_send(k, mins=90):
@@ -127,12 +129,13 @@ def analyze_prepare(ticker):
 scheduler=BackgroundScheduler()
 
 def direct_scan_98():
+    WATCH = WATCH_LIST
     now_et=datetime.now(ET_ZONE)
     ts=now_et.strftime("%Y-%m-%d %H:%M:%S")
     if not is_market_hours():
-        print(f"[{ts} ET] DIRECT SCAN 98 - Skip outside 09:00-16:00 ET Mon-Fri")
+        print(f"[{ts} ET] DIRECT SCAN {len(WATCH)} - Skip outside 09:00-16:00 ET Mon-Fri")
         return
-    print(f"[{ts} ET] DIRECT SCAN 98 - START 98 FULL BOTH NOW")
+    print(f"[{ts} ET] DIRECT SCAN {len(WATCH)} - START {len(WATCH)} FULL BOTH NOW")
     found=0
     for t in WATCH_98:
         try:
@@ -148,32 +151,33 @@ def direct_scan_98():
             time.sleep(0.5)
         except Exception as e:
             print(f"Scan err {t}: {e}")
-    print(f"[{ts} ET] DIRECT SCAN 98 - Done Found {found} - 98 FULL BOTH NOW")
+    print(f"[{ts} ET] DIRECT SCAN {len(WATCH)} - Done Found {found} - {len(WATCH)} FULL BOTH NOW")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not scheduler.running:
         scheduler.add_job(direct_scan_98,'interval',minutes=5,id='scan98')
         scheduler.start()
-        print("Scheduler DIRECT SCAN 98 every 5min - 09:00-16:00 ET only - NO TradingView")
+        print(f"Scheduler DIRECT SCAN {len(WATCH_98)} every 5min - 09:00-16:00 ET only - NO TradingView")
     yield
     scheduler.shutdown()
 
-app=FastAPI(title="DIRECT 98 PREPARE - No TV", lifespan=lifespan)
+app=FastAPI(title=f"DIRECT {len(WATCH_LIST) if 'WATCH_LIST' in dir() else len(WATCH_98)} PREPARE - No TV", lifespan=lifespan)
 
 @app.get("/")
 def home():
-    return {"status":f"DIRECT 98 PREPARE {len(WATCH_98)} - 09:00-16:00 ET Mon-Fri - No TradingView","market_open":is_market_hours(),"et_now":datetime.now(ET_ZONE).isoformat()}
+    return {"status":f"DIRECT {len(WATCH_98)} PREPARE {len(WATCH_98)} - 09:00-16:00 ET Mon-Fri - No TradingView","market_open":is_market_hours(),"et_now":datetime.now(ET_ZONE).isoformat()}
 
 @app.get("/health")
 def health():
-    return {"ok":True,"count":len(WATCH_98),"market_open":is_market_hours(),"rig":"RIG" in WATCH_98}
+    return {"ok":True,"count":len(WATCH_LIST),"market_open":is_market_hours(),"rig":"RIG" in WATCH_LIST, "tickers": WATCH_LIST}
 
 @app.get("/scan")
 def manual():
     threading.Thread(target=direct_scan_98,daemon=True).start()
-    return {"started":"DIRECT SCAN 98"}
+    return {"started":f"DIRECT SCAN {len(WATCH_98)}"}
 
 if __name__=="__main__":
     import uvicorn
     uvicorn.run(app,host="0.0.0.0",port=PORT)
+
