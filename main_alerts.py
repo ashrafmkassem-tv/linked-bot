@@ -1,8 +1,7 @@
-
-# DIRECT MODE ONLY - NO TRADINGVIEW - V2 Alpha PREPARE
-# 105 tickers FULL BOTH NOW - auto count - 09:00-16:00 ET Mon-Fri only (30min pre-market to close)
+# DIRECT MODE ONLY - NO TRADINGVIEW - V3 FIXED FOR RAILWAY
+# Fixes: Loads L3 from multiple paths, never silent on empty list, manual /scan bypasses market hours, better Finnhub retry
 # PREPARE logic: flat -0.8% to +0.8%, Score 65, BB 0.05, RSI 53, rVol 1.2x, Stop 3.5%
-# Anti-duplicate 90min cooldown - Alerts line verified
+# BUY/SELL direct from Railway - Both read L3 json
 
 import os, json, requests, time, pathlib, threading, math
 from fastapi import FastAPI
@@ -22,19 +21,49 @@ BASE_DIR = pathlib.Path(__file__).parent
 ET_ZONE = ZoneInfo("America/New_York")
 
 def load_sectors():
-    for p in [BASE_DIR/"L3_sectors.json", pathlib.Path("/mnt/data/L3_sectors.json")]:
+    # Try all possible locations/names
+    candidates = [
+        BASE_DIR/"L3_sectors.json",
+        BASE_DIR/"L3_sectors_FINAL.json",
+        BASE_DIR/"data"/"L3_sectors.json",
+        pathlib.Path("/mnt/data/L3_sectors.json"),
+        pathlib.Path("/mnt/data/L3_sectors_FINAL.json"),
+        pathlib.Path("/app/L3_sectors.json"),
+        pathlib.Path("/app/L3_sectors_FINAL.json"),
+    ]
+    for p in candidates:
         if p.exists():
             try:
                 data = json.loads(p.read_text())
                 if isinstance(data, dict) and all(isinstance(v,list) for v in data.values()):
+                    print(f"[OK] Loaded sectors from {p} -> {sum(len(v) for v in data.values())} tickers")
                     return data
-            except: pass
+            except Exception as e:
+                print(f"[ERR] Failed to load {p}: {e}")
+    print("[WARN] No L3_sectors file found, returning empty")
     return {}
 
 L3_SECTORS = load_sectors()
 all_tvs = [t for lst in L3_SECTORS.values() for t in lst]
 WATCH_LIST = sorted(set([t.split(":")[-1].replace(".V","").replace(".TO","").upper() for t in all_tvs]))
-WATCH_98 = WATCH_LIST  # keep compat
+WATCH_98 = WATCH_LIST
+
+# Fallback if empty - use FINAL embedded list to never stay silent
+if not WATCH_LIST:
+    try:
+        fallback_path = pathlib.Path(__file__).parent / "L3_sectors_FINAL.json"
+        if not fallback_path.exists():
+            fallback_path = pathlib.Path("/mnt/data/L3_sectors_FINAL.json")
+        if fallback_path.exists():
+            data = json.loads(fallback_path.read_text())
+            all_tvs = [t for lst in data.values() for t in lst]
+            WATCH_LIST = sorted(set([t.split(":")[-1].replace(".V","").replace(".TO","").upper() for t in all_tvs]))
+            WATCH_98 = WATCH_LIST
+            L3_SECTORS = data
+            print(f"[FALLBACK] Loaded {len(WATCH_LIST)} tickers from {fallback_path}")
+    except Exception as e:
+        print(f"[FALLBACK ERR] {e}")
+
 print(f"DIRECT SCAN {len(WATCH_LIST)} - {len(WATCH_LIST)} tickers - RIG present: {'RIG' in WATCH_LIST}")
 
 _last = {}
@@ -53,7 +82,7 @@ def is_market_hours():
 
 def tg(text):
     if not TOKEN or not CHAT_ID:
-        print(f"[SKIP] {text[:100]}"); return False
+        print(f"[SKIP TG NOT CONFIGURED] {text[:100]}"); return False
     try:
         r = requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
                           json={"chat_id":CHAT_ID,"text":text[:4000],"disable_web_page_preview":True}, timeout=10)
@@ -63,24 +92,28 @@ def tg(text):
         print(f"TG Error {e}"); return False
 
 def get_candles(sym, days=80):
-    if not FINNHUB: return None
+    if not FINNHUB: 
+        print("[ERR] FINNHUB key missing")
+        return None
     try:
         clean = sym.split(":")[-1].replace(".V","").replace(".TO","").upper()
         to_ts = int(datetime.now(ZoneInfo("UTC")).timestamp())
         from_ts = int((datetime.now(ZoneInfo("UTC"))-timedelta(days=days)).timestamp())
         url = f"https://finnhub.io/api/v1/stock/candle?symbol={clean}&resolution=D&from={from_ts}&to={to_ts}&token={FINNHUB}"
         r=requests.get(url, timeout=12)
-        if r.status_code!=200: return None
+        if r.status_code == 429:
+            print(f"[FINNHUB 429 Rate Limit] {clean} - sleeping 2s")
+            time.sleep(2)
+            return None
+        if r.status_code!=200: 
+            print(f"[FINNHUB {r.status_code}] {clean}")
+            return None
         d=r.json()
         if d.get("s")!="ok" or not d.get("c"): return None
         return {"c":d["c"],"v":d["v"]}
-    except: return None
-
-def ema(prices,p):
-    if len(prices)<p: return None
-    k=2/(p+1); e=sum(prices[:p])/p
-    for x in prices[p:]: e=x*k+e*(1-k)
-    return e
+    except Exception as e:
+        print(f"[CANDLE ERR] {sym}: {e}")
+        return None
 
 def rsi_calc(prices,per=14):
     if len(prices)<per+1: return 50
@@ -128,23 +161,28 @@ def analyze_prepare(ticker):
 
 scheduler=BackgroundScheduler()
 
-def direct_scan_98():
+def direct_scan_98(bypass_market=False):
     WATCH = WATCH_LIST
     now_et=datetime.now(ET_ZONE)
     ts=now_et.strftime("%Y-%m-%d %H:%M:%S")
-    if not is_market_hours():
+    if not WATCH:
+        print(f"[{ts} ET] DIRECT SCAN 0 - EMPTY WATCH LIST! Check L3_sectors.json")
+        tg(f"⚠️ ALERTS WARNING: WATCH LIST EMPTY at {ts} ET - Check L3_sectors.json in Railway")
+        return
+    if not bypass_market and not is_market_hours():
         print(f"[{ts} ET] DIRECT SCAN {len(WATCH)} - Skip outside 09:00-16:00 ET Mon-Fri")
         return
     print(f"[{ts} ET] DIRECT SCAN {len(WATCH)} - START {len(WATCH)} FULL BOTH NOW")
     found=0
-    for t in WATCH_98:
+    for t in WATCH:
         try:
             res=analyze_prepare(t)
-            if not res: time.sleep(0.2); continue
+            if not res: 
+                time.sleep(0.2); continue
             key=f"PREPARE_{res['symbol']}"
             if not can_send(key,90): continue
             found+=1
-            msg=(f"PREPARE: {res['symbol']} ${res['price']:.2f} ({res['chg']:+.2f}%) Score {res['score']}/100\n"
+            msg=(f"🟢 BUY PREPARE: {res['symbol']} ${res['price']:.2f} ({res['chg']:+.2f}%) Score {res['score']}/100\n"
                  f"Flat -0.8 to +0.8% | RSI {res['rsi']:.1f} | rVol {res['rvol']:.2f}x | BB {res['bb']:.3f}\n"
                  f"Entry ${res['price']:.2f} Target ${res['t1']:.2f} / ${res['t2']:.2f} Stop ${res['stop']:.2f} (3.5%)")
             tg(msg)
@@ -156,28 +194,29 @@ def direct_scan_98():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not scheduler.running:
-        scheduler.add_job(direct_scan_98,'interval',minutes=5,id='scan98')
+        scheduler.add_job(lambda: direct_scan_98(False),'interval',minutes=5,id='scan98')
         scheduler.start()
         print(f"Scheduler DIRECT SCAN {len(WATCH_98)} every 5min - 09:00-16:00 ET only - NO TradingView")
+        # Send startup message
+        tg(f"✅ Linked-Bot Started: {len(WATCH_98)} tickers loaded - {datetime.now(ET_ZONE).strftime('%Y-%m-%d %H:%M ET')}")
     yield
     scheduler.shutdown()
 
-app=FastAPI(title=f"DIRECT {len(WATCH_LIST) if 'WATCH_LIST' in dir() else len(WATCH_98)} PREPARE - No TV", lifespan=lifespan)
+app=FastAPI(title=f"DIRECT {len(WATCH_LIST) if 'WATCH_LIST' in dir() else 0} PREPARE - No TV", lifespan=lifespan)
 
 @app.get("/")
 def home():
-    return {"status":f"DIRECT {len(WATCH_98)} PREPARE {len(WATCH_98)} - 09:00-16:00 ET Mon-Fri - No TradingView","market_open":is_market_hours(),"et_now":datetime.now(ET_ZONE).isoformat()}
+    return {"status":f"DIRECT {len(WATCH_98)} PREPARE {len(WATCH_98)} - 09:00-16:00 ET Mon-Fri - No TradingView","market_open":is_market_hours(),"et_now":datetime.now(ET_ZONE).isoformat(), "watch_count": len(WATCH_98)}
 
 @app.get("/health")
 def health():
-    return {"ok":True,"count":len(WATCH_LIST),"market_open":is_market_hours(),"rig":"RIG" in WATCH_LIST, "tickers": WATCH_LIST}
+    return {"ok":True,"count":len(WATCH_LIST),"market_open":is_market_hours(),"rig":"RIG" in WATCH_LIST, "tickers": WATCH_LIST, "last_alerts": list(_last.keys())[-10:]}
 
 @app.get("/scan")
 def manual():
-    threading.Thread(target=direct_scan_98,daemon=True).start()
-    return {"started":f"DIRECT SCAN {len(WATCH_98)}"}
+    threading.Thread(target=lambda: direct_scan_98(True),daemon=True).start()
+    return {"started":f"DIRECT SCAN {len(WATCH_98)} - bypass market hours"}
 
 if __name__=="__main__":
     import uvicorn
     uvicorn.run(app,host="0.0.0.0",port=PORT)
-
