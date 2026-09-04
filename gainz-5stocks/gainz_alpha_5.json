@@ -74,5 +74,15 @@
     "exchange": "",
     "source": "GainzAlgo Alpha",
     "raw_message": "GIPR YD5 0.5017 -5.84%"
+  },
+  {
+    "timestamp_utc": "2026-09-04T17:30:30.690401+00:00",
+    "ticker": "ZETA",
+    "action": "{{STRATEGY.ORDER.ACTION}}",
+    "price": "31.40",
+    "timeframe": "15",
+    "exchange": "",
+    "source": "GainzAlgo Alpha",
+    "raw_message": "{\"ticker\":\"ZETA\",\"action\":\"{{strategy.order.action}}\",\"price\":\"31.40\",\"timeframe\":\"15\"}"
   }
 ]
