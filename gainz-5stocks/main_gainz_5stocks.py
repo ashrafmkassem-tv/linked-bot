@@ -28,7 +28,6 @@ def send_telegram(text):
         print("Missing TELEGRAM_BOT_TOKEN or CHAT_ID")
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    # NO MARKDOWN - plain text only to avoid 400 errors
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text
@@ -115,6 +114,31 @@ def parse_tradingview_payload(raw_body, json_data):
     }
 
 def process_signal_async(raw_body, json_data):
+    # --- NEW: Handle LIVE 1M alerts directly without touching Gainz logic ---
+    if raw_body and 'LIVE 1M' in raw_body:
+        now_utc = datetime.now(timezone.utc)
+        # Try to extract ticker for logging
+        live_ticker = "LIVE"
+        m = re.search(r'LIVE\s+1M\s+5-10-15\s+(?:FIX\s+)?([A-Z]{1,6})', raw_body)
+        if m:
+            live_ticker = m.group(1).upper()
+        
+        signal_record = {
+            "timestamp_utc": now_utc.isoformat(),
+            "ticker": live_ticker,
+            "action": "LIVE",
+            "price": "",
+            "timeframe": "1m",
+            "exchange": "",
+            "source": "LIVE 1M 5-10-15",
+            "raw_message": raw_body[:500]
+        }
+        log_signal(signal_record)
+        # Forward exact message from TradingView to Telegram
+        send_telegram(raw_body.strip())
+        return
+
+    # --- EXISTING: GainzAlgo logic - untouched ---
     parsed = parse_tradingview_payload(raw_body, json_data)
     now_utc = datetime.now(timezone.utc)
     signal_record = {
