@@ -34,5 +34,15 @@
     "timestamp_utc": "2026-09-03T10:16:48.207759+00:00",
     "source": "GainzAlgo Alpha",
     "raw_message": "{\n  \"ticker\": \"RIG\",\n  \"action\": \"BUY\",\n  \"price\": \"5.23\",\n  \"timeframe\": \"5m\",\n  \"text\": \"RIG 5m BUY @ 5.23\"\n}"
+  },
+  {
+    "timestamp_utc": "2026-09-04T14:45:21.898389+00:00",
+    "ticker": "KLAR",
+    "action": "{{STRATEGY.ORDER.ACTION}}",
+    "price": "14.25",
+    "timeframe": "15",
+    "exchange": "",
+    "source": "GainzAlgo Alpha",
+    "raw_message": "{\"ticker\":\"KLAR\",\"action\":\"{{strategy.order.action}}\",\"price\":\"14.25\",\"timeframe\":\"15\"}"
   }
 ]
