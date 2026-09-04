@@ -84,5 +84,15 @@
     "exchange": "",
     "source": "GainzAlgo Alpha",
     "raw_message": "{\"ticker\":\"ZETA\",\"action\":\"{{strategy.order.action}}\",\"price\":\"31.40\",\"timeframe\":\"15\"}"
+  },
+  {
+    "timestamp_utc": "2026-09-04T18:31:00.862724+00:00",
+    "ticker": "MDCX",
+    "action": "SELL",
+    "price": "0.1766",
+    "timeframe": "15",
+    "exchange": "",
+    "source": "GainzAlgo Alpha",
+    "raw_message": "{\"ticker\":\"MDCX\",\"action\":\"sell\",\"price\":\"0.1766\",\"timeframe\":\"15\"}"
   }
 ]
