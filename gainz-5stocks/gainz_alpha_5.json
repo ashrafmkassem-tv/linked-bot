@@ -94,5 +94,15 @@
     "exchange": "",
     "source": "GainzAlgo Alpha",
     "raw_message": "{\"ticker\":\"MDCX\",\"action\":\"sell\",\"price\":\"0.1766\",\"timeframe\":\"15\"}"
+  },
+  {
+    "timestamp_utc": "2026-09-04T19:28:34.648741+00:00",
+    "ticker": "UNKNOWN",
+    "action": "UNKNOWN",
+    "price": "",
+    "timeframe": "",
+    "exchange": "",
+    "source": "GainzAlgo Alpha",
+    "raw_message": "GELS G10 0.8879 10.99%"
   }
 ]
