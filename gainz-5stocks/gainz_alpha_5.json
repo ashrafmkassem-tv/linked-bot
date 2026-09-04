@@ -44,5 +44,15 @@
     "exchange": "",
     "source": "GainzAlgo Alpha",
     "raw_message": "{\"ticker\":\"KLAR\",\"action\":\"{{strategy.order.action}}\",\"price\":\"14.25\",\"timeframe\":\"15\"}"
+  },
+  {
+    "timestamp_utc": "2026-09-04T15:21:11.373974+00:00",
+    "ticker": "UNKNOWN",
+    "action": "UNKNOWN",
+    "price": "",
+    "timeframe": "",
+    "exchange": "",
+    "source": "GainzAlgo Alpha",
+    "raw_message": "MDCX G10 0.178 11.04%"
   }
 ]
