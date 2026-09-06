@@ -1,203 +1,148 @@
 import os
-import json
 import re
-import threading
+import json
 import requests
-from datetime import datetime, timezone
-from flask import Flask, request, jsonify
+from flask import Flask, request
 
 app = Flask(__name__)
 
-# --- ENV VARS ---
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "7486535184").strip()
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
-GITHUB_REPO = os.getenv("GITHUB_REPO", "").strip()
-GITHUB_FILE_PATH = os.getenv("GITHUB_JSON_PATH", "gainz_alpha_5.json")
-GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
-
-JSON_FILE = "gainz_alpha_5.json"
-
-def ensure_json_file():
-    if not os.path.exists(JSON_FILE):
-        with open(JSON_FILE, 'w', encoding='utf-8') as f:
-            json.dump([], f)
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 def send_telegram(text):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("Missing TELEGRAM_BOT_TOKEN or CHAT_ID")
+        print("Missing TELEGRAM env vars")
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": text
+        "text": text,
+        "parse_mode": "Markdown"
     }
     try:
         r = requests.post(url, json=payload, timeout=10)
-        print(f"Telegram response: {r.status_code} {r.text[:200]}")
+        print(f"Telegram response: {r.status_code} {r.text}")
     except Exception as e:
-        print(f"Telegram error: {e}")
+        print(f"Telegram send failed: {e}")
 
-def push_to_github():
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        return
-    try:
-        with open(JSON_FILE, 'r', encoding='utf-8') as f:
-            content = f.read()
-        import base64
-        api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
-        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
-        sha = None
-        get_resp = requests.get(api_url + f"?ref={GITHUB_BRANCH}", headers=headers, timeout=10)
-        if get_resp.status_code == 200:
-            sha = get_resp.json().get("sha")
-        b64_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
-        data = {
-            "message": f"Update {GITHUB_FILE_PATH} - {datetime.now(timezone.utc).isoformat()}",
-            "content": b64_content,
-            "branch": GITHUB_BRANCH
-        }
-        if sha:
-            data["sha"] = sha
-        put_resp = requests.put(api_url, headers=headers, json=data, timeout=15)
-        print(f"GitHub push: {put_resp.status_code}")
-    except Exception as e:
-        print(f"GitHub push error: {e}")
+# Regex for LIVE alerts: TICKER SIGNAL PRICE CHANGE%
+# Examples: GELS G10 0.8879 10.99%, KEEL YU5 3.48 5.14%, DVLT R30 0.65 12%
+LIVE_PATTERN = re.compile(r'^([A-Z0-9\.\-\_]+)\s+([A-Z]+\d*)\s+([\d\.]+)\s+([\d\.]+)%?', re.IGNORECASE)
 
-def log_signal(signal_data):
-    ensure_json_file()
-    try:
-        with open(JSON_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            if not isinstance(data, list):
-                data = []
-    except:
-        data = []
-    data.append(signal_data)
-    data = data[-500:]
-    with open(JSON_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    if GITHUB_TOKEN:
-        threading.Thread(target=push_to_github, daemon=True).start()
+def handle_live(raw):
+    raw = raw.strip()
+    m = LIVE_PATTERN.match(raw)
+    if not m:
+        # Fallback: try split
+        parts = raw.split()
+        if len(parts) < 2:
+            return None
+        ticker = parts[0]
+        signal = parts[1] if len(parts) > 1 else ""
+        price = parts[2] if len(parts) > 2 else ""
+        pct = parts[3] if len(parts) > 3 else ""
+    else:
+        ticker, signal, price, pct = m.group(1), m.group(2), m.group(3), m.group(4)
 
-def parse_tradingview_payload(raw_body, json_data):
-    ticker = "UNKNOWN"
-    action = "UNKNOWN"
-    price = ""
-    timeframe = ""
-    exchange = ""
-    if json_data:
-        ticker = json_data.get("ticker") or json_data.get("symbol") or json_data.get("stock") or ticker
-        action = json_data.get("action") or json_data.get("side") or json_data.get("signal") or action
-        price = str(json_data.get("price") or json_data.get("close") or "")
-        timeframe = json_data.get("timeframe") or json_data.get("interval") or json_data.get("tf") or ""
-        exchange = json_data.get("exchange") or ""
-        if isinstance(action, str):
-            action = action.upper()
-    text = raw_body.strip() if raw_body else ""
-    if text and (ticker == "UNKNOWN" or action == "UNKNOWN"):
-        m = re.search(r'([A-Z]{1,6})\s+(\d+m|\d+h|\d+D)?\s*(BUY|SELL)', text, re.IGNORECASE)
-        if m:
-            ticker = m.group(1).upper() if ticker == "UNKNOWN" else ticker
-            timeframe = m.group(2) or timeframe
-            action = m.group(3).upper() if action == "UNKNOWN" else action
-        pm = re.search(r'@\s*([\d\.]+)', text)
-        if pm:
-            price = pm.group(1)
-    return {
-        "ticker": str(ticker).upper(),
-        "action": str(action).upper(),
-        "price": str(price),
-        "timeframe": str(timeframe),
-        "exchange": str(exchange),
-        "raw": text[:500] if text else json.dumps(json_data)[:500] if json_data else ""
-    }
+    signal_upper = signal.upper()
 
-def process_signal_async(raw_body, json_data):
-    # --- NEW: Handle LIVE 1M alerts directly without touching Gainz logic ---
-    if raw_body and 'LIVE 1M' in raw_body:
-        now_utc = datetime.now(timezone.utc)
-        # Try to extract ticker for logging
-        live_ticker = "LIVE"
-        m = re.search(r'LIVE\s+1M\s+5-10-15\s+(?:FIX\s+)?([A-Z]{1,6})', raw_body)
-        if m:
-            live_ticker = m.group(1).upper()
-        
-        signal_record = {
-            "timestamp_utc": now_utc.isoformat(),
-            "ticker": live_ticker,
-            "action": "LIVE",
-            "price": "",
-            "timeframe": "1m",
-            "exchange": "",
-            "source": "LIVE 1M 5-10-15",
-            "raw_message": raw_body[:500]
-        }
-        log_signal(signal_record)
-        # Forward exact message from TradingView to Telegram
-        send_telegram(raw_body.strip())
-        return
+    if signal_upper.startswith("YU"):
+        emoji = "🟡"
+        label = f"Yellow Up {signal_upper}"
+    elif signal_upper.startswith("YD"):
+        emoji = "🟡"
+        label = f"Yellow Down {signal_upper}"
+    elif signal_upper.startswith("G"):
+        emoji = "🟢"
+        label = f"Green {signal_upper}"
+    elif signal_upper.startswith("R"):
+        emoji = "🔴"
+        label = f"Red {signal_upper}"
+    else:
+        emoji = "⚪"
+        label = signal_upper
 
-    # --- EXISTING: GainzAlgo logic - untouched ---
-    parsed = parse_tradingview_payload(raw_body, json_data)
-    now_utc = datetime.now(timezone.utc)
-    signal_record = {
-        "timestamp_utc": now_utc.isoformat(),
-        "ticker": parsed["ticker"],
-        "action": parsed["action"],
-        "price": parsed["price"],
-        "timeframe": parsed["timeframe"],
-        "exchange": parsed["exchange"],
-        "source": "GainzAlgo Alpha",
-        "raw_message": parsed["raw"]
-    }
-    log_signal(signal_record)
-    emoji = "🟢" if "BUY" in parsed["action"] else "🔴" if "SELL" in parsed["action"] else "🔵"
-    msg = f"{emoji} GainzAlgo Alpha\n\n"
-    msg += f"Ticker: {parsed['ticker']}\n"
-    msg += f"Action: {parsed['action']}\n"
-    if parsed['price']:
-        msg += f"Price: {parsed['price']}\n"
-    if parsed['timeframe']:
-        msg += f"TF: {parsed['timeframe']}\n"
-    msg += f"Time: {now_utc.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
-    if parsed['raw']:
-        msg += f"\n{parsed['raw']}"
-    send_telegram(msg)
+    msg = f"{emoji} LIVE 1M {label}\nTicker: {ticker}\nPrice: {price}\nChange: {pct}%\n\n`{raw}`"
+    return msg
 
-@app.route('/', methods=['GET'])
-def home():
-    ensure_json_file()
-    return jsonify({"status": "Gainz 5 Stocks Open Bot is running - NO MARKDOWN - instant response", "mode": "open - accepts any ticker", "json_file": JSON_FILE})
+def handle_gainz(data, raw_text):
+    ticker = data.get("ticker", "UNKNOWN")
+    action = str(data.get("action", "UNKNOWN")).lower()
+    price = data.get("price", "")
+    tf = data.get("timeframe", "")
 
-@app.route('/webhook', methods=['POST'])
-@app.route('/webhook-stocks', methods=['POST'])
-@app.route('/webhook-gainz', methods=['POST'])
+    if "{" in action or "}" in action:
+        print(f"Skipped placeholder action: {raw_text}")
+        return None
+
+    emoji = "🔵" if action == "buy" else "🔴" if action == "sell" else "⚪"
+
+    msg = (
+        f"{emoji} GainzAlgo Alpha\n"
+        f"Ticker: {ticker}\n"
+        f"Action: {action.upper()}\n"
+        f"Price: {price}\n"
+        f"TF: {tf}\n\n"
+        f"`{raw_text}`"
+    )
+    return msg
+
+@app.route("/", methods=["GET", "POST"])
+@app.route("/webhook", methods=["GET", "POST"])
 def webhook():
-    raw_body = request.get_data(as_text=True)
-    json_data = None
+    if request.method == "GET":
+        return "ok", 200
+
+    raw = request.get_data(as_text=True).strip()
+    print(f"RAW IN: {raw}")
+
+    if not raw:
+        # Try json body if raw empty
+        try:
+            json_body = request.get_json(force=True, silent=True)
+            if json_body:
+                raw = json.dumps(json_body)
+        except:
+            pass
+
+    if not raw:
+        return "empty", 200
+
+    # 1. Skip TradingView placeholder alerts like {{STRATEGY.ORDER.ACTION}}
+    if "{{" in raw or "STRATEGY" in raw.upper():
+        print(f"Skipped bad placeholder: {raw}")
+        return "skipped placeholder", 200
+
+    # 2. Try to parse as Gainz JSON first
     try:
-        json_data = request.get_json(force=True, silent=True)
+        data = json.loads(raw)
+        if isinstance(data, dict) and "ticker" in data:
+            msg = handle_gainz(data, raw)
+            if msg:
+                send_telegram(msg)
+                return "gainz ok", 200
     except:
         pass
-    threading.Thread(target=process_signal_async, args=(raw_body, json_data), daemon=True).start()
-    return jsonify({"status": "ok", "received": True}), 200
 
-@app.route('/webhook', methods=['GET'])
-def webhook_get():
-    return jsonify({"ok": True, "msg": "Use POST"}), 200
+    # 3. Try LIVE format
+    if any(x in raw.upper() for x in ["G10", "G5", "G15", "YU", "YD", "R30", "R10"]):
+        msg = handle_live(raw)
+        if msg:
+            send_telegram(msg)
+            return "live ok", 200
 
-@app.route('/signals', methods=['GET'])
-def get_signals():
-    ensure_json_file()
-    try:
-        with open(JSON_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return jsonify(data[-100:])
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    # 4. Last fallback - try live regex even without keywords
+    if LIVE_PATTERN.match(raw):
+        msg = handle_live(raw)
+        if msg:
+            send_telegram(msg)
+            return "live ok fallback", 200
 
-if __name__ == '__main__':
-    ensure_json_file()
+    print(f"Unrecognized format: {raw}")
+    # Optional: send as unknown for debugging
+    # send_telegram(f"⚪ Unknown Format\n`{raw}`")
+    return "unknown format", 200
+
+if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, threaded=True)
+    app.run(host="0.0.0.0", port=port)
