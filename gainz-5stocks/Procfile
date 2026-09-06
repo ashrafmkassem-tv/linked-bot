@@ -1,1 +1,1 @@
-   worker: python main_gainz_5stocks.py
+web: gunicorn main_gainz_5stocks:app --bind 0.0.0.0:$PORT
