@@ -178,7 +178,7 @@ def direct_scan_98(bypass_market=False):
         try:
             res=analyze_prepare(t)
             if not res: 
-                time.sleep(0.2); continue
+                time.sleep(1.0); continue
             key=f"PREPARE_{res['symbol']}"
             if not can_send(key,90): continue
             found+=1
@@ -186,7 +186,7 @@ def direct_scan_98(bypass_market=False):
                  f"Flat -0.8 to +0.8% | RSI {res['rsi']:.1f} | rVol {res['rvol']:.2f}x | BB {res['bb']:.3f}\n"
                  f"Entry ${res['price']:.2f} Target ${res['t1']:.2f} / ${res['t2']:.2f} Stop ${res['stop']:.2f} (3.5%)")
             tg(msg)
-            time.sleep(0.5)
+            time.sleep(1.0)
         except Exception as e:
             print(f"Scan err {t}: {e}")
     print(f"[{ts} ET] DIRECT SCAN {len(WATCH)} - Done Found {found} - {len(WATCH)} FULL BOTH NOW")
@@ -194,9 +194,9 @@ def direct_scan_98(bypass_market=False):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not scheduler.running:
-        scheduler.add_job(lambda: direct_scan_98(False),'interval',minutes=5,id='scan98')
+        scheduler.add_job(lambda: direct_scan_98(False),'interval',minutes=15,id='scan98')
         scheduler.start()
-        print(f"Scheduler DIRECT SCAN {len(WATCH_98)} every 5min - 09:00-16:00 ET only - NO TradingView")
+        print(f"Scheduler DIRECT SCAN {len(WATCH_98)} every 15min - 09:00-16:00 ET only - NO TradingView")
         # Send startup message
         tg(f"✅ Linked-Bot Started: {len(WATCH_98)} tickers loaded - {datetime.now(ET_ZONE).strftime('%Y-%m-%d %H:%M ET')}")
     yield
