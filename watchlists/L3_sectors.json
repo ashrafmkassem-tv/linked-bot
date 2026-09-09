@@ -1,0 +1,171 @@
+{
+  "SSD_Storage": [
+    "CBOE:DRAM",
+    "CBOE:RAM",
+    "CBOE:SNDU",
+    "NASDAQ:MU",
+    "NASDAQ:NTAP",
+    "NASDAQ:SNDK",
+    "NASDAQ:STX",
+    "NASDAQ:WDC",
+    "NYSE:PSTG"
+  ],
+  "Energy_Metals": [
+    "AMEX:UUUU",
+    "GETTEX:EBM",
+    "NASDAQ:ABAT",
+    "NASDAQ:ALOY",
+    "NASDAQ:AQB",
+    "NASDAQ:EU",
+    "NASDAQ:USAR",
+    "NYSE:ALB",
+    "NYSE:CCJ",
+    "NYSE:MP",
+    "NYSE:RIG",
+    "TSX:DB",
+    "TSX:LAC",
+    "TSX:NDM",
+    "TSX:NOU",
+    "TSXV:EBM"
+  ],
+  "Optical": [
+    "NASDAQ:AAOI",
+    "NASDAQ:COHR",
+    "NASDAQ:FN",
+    "NASDAQ:LITE",
+    "NASDAQ:POET",
+    "NYSE:CIEN",
+    "NYSE:LUMN",
+    "NYSE:NOK"
+  ],
+  "SMR_Nuclear": [
+    "AMEX:LEU",
+    "AMEX:UEC",
+    "NASDAQ:ENSC",
+    "NASDAQ:IREN",
+    "NASDAQ:KEEL",
+    "NASDAQ:NNE",
+    "NYSE:OKLO",
+    "NYSE:SMR",
+    "NYSE:TE"
+  ],
+  "Space_Drones": [
+    "NASDAQ:ASTS",
+    "NASDAQ:LUNR",
+    "NASDAQ:MSS",
+    "NASDAQ:ONDS",
+    "NASDAQ:RDW",
+    "NASDAQ:RKLB",
+    "NASDAQ:SPCX",
+    "NYSE:BKSY",
+    "NYSE:PL",
+    "NYSE:SPCE"
+  ],
+  "AI_Cooling": [
+    "AMEX:GCDT",
+    "NASDAQ:CLS",
+    "NASDAQ:CRWV",
+    "NASDAQ:DVLT",
+    "NASDAQ:NBIS",
+    "NASDAQ:SMCI",
+    "NASDAQ:VTIX",
+    "NYSE:ANET",
+    "NYSE:DELL",
+    "NYSE:MOD",
+    "NYSE:VRT"
+  ],
+  "AI_Power": [
+    "NASDAQ:AEHL",
+    "NASDAQ:ALAR",
+    "NASDAQ:AMZN",
+    "NASDAQ:BBAI",
+    "NASDAQ:BIVI",
+    "NASDAQ:IPWR",
+    "NASDAQ:MSFT",
+    "NASDAQ:NVDA",
+    "NASDAQ:PLTR",
+    "NASDAQ:PYPL",
+    "NASDAQ:SOFI",
+    "NASDAQ:SUNE",
+    "NASDAQ:TSLA",
+    "NASDAQ:VERI",
+    "NYSE:NOW",
+    "NYSE:ORCL",
+    "NYSE:UBER",
+    "NYSE:ZETA",
+    "TSXV:NOW"
+  ],
+  "Controller_Chip": [
+    "NASDAQ:ARM",
+    "NASDAQ:CEVA",
+    "NASDAQ:MCHP",
+    "NASDAQ:MRVL",
+    "NASDAQ:NXPI",
+    "NASDAQ:ON",
+    "NASDAQ:QCOM",
+    "NASDAQ:SIMO"
+  ],
+  "Quantum": [
+    "NASDAQ:ARQQ",
+    "NASDAQ:GOOGL",
+    "NASDAQ:HON",
+    "NASDAQ:QBTS",
+    "NASDAQ:RGTI",
+    "NYSE:IBM",
+    "NYSE:IONQ",
+    "NYSE:QUBT"
+  ],
+  "Chip_Mfg": [
+    "NASDAQ:AMD",
+    "NASDAQ:ASML",
+    "NASDAQ:AVGO",
+    "NASDAQ:KLAC",
+    "NASDAQ:LRCX",
+    "NASDAQ:SNPS",
+    "NASDAQ:SQNS",
+    "NYSE:SQNS"
+  ],
+  "AMZN_LIFTS": [
+    "NASDAQ:AMZN",
+    "NASDAQ:ETSY",
+    "NASDAQ:MELI",
+    "NASDAQ:PLTR",
+    "NASDAQ:SHOP",
+    "NASDAQ:SMCI",
+    "NASDAQ:SOFI",
+    "NASDAQ:VERI",
+    "NYSE:ANET",
+    "NYSE:UPS"
+  ],
+  "AMZN_LIFTED_BY": [
+    "NASDAQ:AMD",
+    "NASDAQ:AMZN",
+    "NASDAQ:GOOGL",
+    "NASDAQ:META",
+    "NASDAQ:MSFT",
+    "NASDAQ:NVDA",
+    "NYSE:ORCL"
+  ],
+  "FINTECH": [
+    "NASDAQ:AMBR",
+    "NYSE:KLAR"
+  ],
+  "CONSUMER_TECH": [
+    "NASDAQ:GPRO",
+    "NYSE:CHPT"
+  ],
+  "SOFTWARE_AUTOMATION": [
+    "NASDAQ:MIMI",
+    "NYSE:PATH"
+  ],
+  "BIOTECH": [
+    "NASDAQ:BIAF",
+    "NASDAQ:BTAI",
+    "NASDAQ:GELS",
+    "NASDAQ:IMRN",
+    "NASDAQ:MDCX"
+  ],
+  "REAL_ESTATE": [
+    "NASDAQ:GIPR"
+  ]
+}
